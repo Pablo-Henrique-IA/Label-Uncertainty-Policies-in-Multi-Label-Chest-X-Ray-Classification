@@ -5,7 +5,7 @@
 
 A four-step ablation study that **isolates one variable per step** — domain transfer, preprocessing, and uncertain-label policy — in a multi-label chest X-ray (CXR) classifier. Built on an Xception backbone fine-tuned from **NIH ChestX-ray14** onto **Stanford CheXpert** at 512×512, with a zero-shot interpretability layer (Grad-CAM → Grad-CAM++ → MedSAM).
 
-**Projeto Integrador 2025/2026 — Faculdade SENAI FATESG** · Target venue: **ENIAC 2026 (BRACIS)**
+**Projeto Integrador 2025/2026 — Faculdade INSTITUICAO_1** · Target venue: **ENIAC 2026 (BRACIS)**
 
 <!-- Optional badges — uncomment / adjust as needed
 ![Python](https://img.shields.io/badge/python-3.10+-blue)
@@ -153,13 +153,19 @@ Control with fixed `w_ℓ` across policies (decouple semantics from reweighting)
 
 ## Acknowledgments
 
-This project was born from a personal experience with a childhood pneumonia diagnosis — the motivation behind every line of code. Thanks to **Prof. Dr. Gustavo Laureano** for guidance and scientific rigor, and to **Hugo Pessoni** (B.Sc. in AI, UFG) for technical discussions. Institutional support from **SENAI FATESG**, **CEIA/UFG**, and **AKCIT**.
+This project was born from a personal experience with a childhood pneumonia diagnosis — the motivation behind every line of code. Thanks to **Prof. Dr. ORIENTADOR** for guidance and scientific rigor, and to **COLABORADOR** (B.Sc. in AI, INSTITUICAO_2) for technical discussions. Institutional support from **INSTITUICAO_1**, **INSTITUICAO_2**, and **INSTITUICAO_3**.
+
+<!-- For the double-anonymous submission, consider replacing this entire section with:
+"Acknowledgments omitted to comply with the double-anonymous review policy." -->
 
 ## Author
 
-**Pablo Henrique Miranda Silva** — ML Engineer / AI Researcher
-SENAI FATESG · CEIA/UFG · AKCIT — Goiânia, GO, Brazil
-[GitHub @Pablo-Henrique-IA](https://github.com/Pablo-Henrique-IA) · [LinkedIn](https://www.linkedin.com/in/pablo-henrique-ia) · pablohmsilva7@gmail.com
+**AUTOR** — ML Engineer / AI Researcher
+INSTITUICAO_1 · INSTITUICAO_2 · INSTITUICAO_3 — CIDADE_OMITIDA, Brazil
+GitHub: @USUARIO_OMITIDO · LinkedIn: omitido · E-mail: EMAIL_OMITIDO
+
+<!-- For the double-anonymous submission, consider replacing this entire section with:
+"Author identity and affiliations omitted to comply with the double-anonymous review policy (ENIAC 2026 / BRACIS)." -->
 
 ## License
 
