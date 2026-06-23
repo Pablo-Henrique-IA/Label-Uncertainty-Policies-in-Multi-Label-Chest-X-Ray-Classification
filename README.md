@@ -1,1 +1,1 @@
-# Label-Uncertainty-Policies-in-Multi-Label-Chest-X-Ray-Classification
+# Label Uncertainty Policies in Multi-Label Chest X-Ray Classification
