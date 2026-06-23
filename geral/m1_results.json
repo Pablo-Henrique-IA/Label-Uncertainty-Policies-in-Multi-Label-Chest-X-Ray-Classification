@@ -1,0 +1,17 @@
+{
+  "model": "M1_NIH_Xception",
+  "macro_auroc": 0.7697014372715004,
+  "epochs": {
+    "p1": 30,
+    "p2": 50,
+    "p3": 40
+  },
+  "per_label_auroc": {
+    "atelectasis": 0.7044047089426662,
+    "cardiomegaly": 0.8113670655838459,
+    "pleural_effusion": 0.7858107586459984,
+    "pneumothorax": 0.8396250581533496,
+    "consolidation": 0.6492574111706358,
+    "edema": 0.8277436211325072
+  }
+}

@@ -1,0 +1,201 @@
+
+MODELO: M1 — Xception 512×512 | Pré-treino ImageNet | NIH ChestX-ray14
+OBJETIVO: Baseline do ablation study M1→M2→M3→M4
+
+CONFIGURAÇÃO:
+  Backbone      : Xception (ImageNet weights, frozen→unfreeze progressivo)
+  Input         : 512×512×3 (grayscale replicado)
+  Cabeça        : GAP → Dense(512)+BN+Drop(0.5) → Dense(256)+Drop(0.3) → Dense(6,sigmoid)
+  Loss          : Focal Loss γ=2.0 α=0.25 + pesos por label
+  Early stopping: val_macro_auroc patience=7
+  Scheduler     : ReduceLROnPlateau factor=0.5 patience=3
+
+DATASET (NIH ChestX-ray14):
+  Train: 41.086 imagens (30.686 originais + 10.400 aug)
+  Test : 20.486 imagens
+  Labels: atelectasis, cardiomegaly, pleural_effusion, pneumothorax, consolidation, edema
+
+ESTRATÉGIA DE TREINO:
+  Fase 1: 30 epochs | Melhor val_macro_auroc=0.7030 (epoch 29) | LR final=N/A
+  Fase 2: 11 epochs | Melhor val_macro_auroc=0.7662 (epoch 4) | LR final=N/A
+  Fase 3: 10 epochs | Melhor val_macro_auroc=0.7696 (epoch 3) | LR final=N/A
+
+RESULTADOS NO TEST SET:
+  atelectasis           : 0.7044
+  cardiomegaly          : 0.8114
+  pleural_effusion      : 0.7858
+  pneumothorax          : 0.8396
+  consolidation         : 0.6493
+  edema                 : 0.8277
+  ────────────────────────────────
+  Macro-AUROC (final)  : 0.7697
+  Target               : 0.85–0.92
+  Status               : Abaixo do target — esperado para M1 baseline
+
+
+=================================================================
+RELATÓRIO CLAUDE
+=================================================================
+
+# Relatório Técnico — M1 Baseline
+## Ablation Study: Classificação Multi-Label de Radiografias de Tórax (CXR)
+
+---
+
+## 1. Resumo Executivo
+
+O modelo M1 (Xception 512×512, pré-treino ImageNet, treinado no NIH ChestX-ray14) alcançou **Macro-AUROC = 0.7697** no test set, operando **0.0803–0.1503 pontos abaixo do target estabelecido (0.85–0.92)**. O resultado é consistente com o esperado para um baseline sem domain-adaptive fine-tuning em dataset especializado.
+
+O modelo demonstra capacidade discriminativa aceitável para patologias de alta prevalência e alto contraste visual (pneumothorax: 0.8396, cardiomegaly: 0.8114, edema: 0.8277), mas apresenta limitações severas em consolidation (0.6493) e performance moderada em atelectasis (0.7044), ambas as labels de maior ambiguidade visual no NIH ChestX-ray14. A progressão em três fases de descongelamento produziu ganho acumulado de **+0.0666 de AUROC** (0.7030 → 0.7696), confirmando que o unfreezing progressivo do backbone é necessário e funcional, mas insuficiente isoladamente para atingir o target sem transferência de domínio mais específica.
+
+O M1 cumpre sua função no ablation study: estabelecer o piso de performance sobre o qual M2 (fine-tuning CheXpert), M3 e M4 deverão demonstrar ganhos incrementais mensuráveis e atribuíveis.
+
+---
+
+## 2. Análise por Label
+
+### 2.1 Tabela de posicionamento
+
+| Label | AUROC | Classificação | Hipótese principal |
+|---|---|---|---|
+| pneumothorax | 0.8396 | **Bom** | Alta saliência visual (borda pleural hipertransparente); baixa ambiguidade semântica; padrão localizado favorece GAP |
+| cardiomegaly | 0.8114 | **Bom** | Critério morfológico global (índice cardiotorácico); sinal de baixa frequência espacial bem capturado em 512×512 |
+| edema | 0.8277 | **Bom** | Padrão bilateral difuso com textura característica; alta prevalência relativa no NIH facilita aprendizado |
+| pleural_effusion | 0.7858 | **Moderado** | Padrão razoavelmente distinto, mas sobreposição com atelectasis basilar introduz ruído de label |
+| atelectasis | 0.7044 | **Fraco** | Label mais ruidosa do NIH ChestX-ray14 (gerada por NLP mining com ~20% de erro estimado); alta co-ocorrência com effusion e consolidation dilui gradientes discriminativos |
+| consolidation | 0.6493 | **Crítico** | Maior ambiguidade visual do conjunto: overlap semântico e visual com edema, atelectasis e pneumonia; desbalanceamento severo (~5% prevalência); Focal Loss com γ=2.0 atenua mas não elimina o problema |
+
+### 2.2 Hipóteses detalhadas
+
+**Pneumothorax (0.8396):** A ausência de marcação vascular periférica é um sinal de alta especificidade e baixa variância inter-observador. A resolução 512×512 preserva esse detalhe. É esperado que este seja o label mais estável ao longo do ablation study.
+
+**Cardiomegaly (0.8114):** O sinal é essencialmente de forma global — bem representado após GAP. O risco é ceiling effect: ganhos adicionais em M2–M4 podem ser marginais aqui.
+
+**Consolidation (0.6493):** Resultado crítico e esperado. O NIH ChestX-ray14 não distingue consolidation de pneumonia bacteriana vs. atelectasia lobar vs. edema assimétrico no processo de anotação automática. O modelo está aprendendo um conceito mal-definido no dado de treinamento. Este é o label com maior potencial de melhoria em M2, dado que o CheXpert possui anotação radiologista-assistida com maior consistência semântica para consolidation.
+
+**Atelectasis (0.7044):** A baixa performance reflete primariamente a qualidade da label no NIH (ruído de anotação via NLP). O modelo está sendo treinado com um sinal supervisionado ruidoso. Melhoria esperada em M2 por duas vias: (a) labels mais limpas no CheXpert e (b) maior prevalência de atelectasis pós-cirúrgica com padrão visual mais típico.
+
+---
+
+## 3. Comportamento do Treino
+
+### 3.1 Fase 1 — Backbone congelado (30 epochs)
+
+**val_macro_auroc melhor = 0.7030 (epoch 29)**
+
+A convergência lenta até o epoch 29 indica que a cabeça classificadora (GAP → Dense(512)+BN+Drop(0.5) → Dense(256)+Drop(0.3) → Dense(6,sigmoid)) requer muitas iterações para adaptar features ImageNet genéricas ao domínio radiológico. O fato de o melhor resultado ter ocorrido no epoch 29 (próximo ao limite de 30) sugere que a fase 1 estava no limite — o modelo ainda estava melhorando quando o scheduler de descongelamento foi ativado. Isso é um **ponto de atenção**: potencialmente prematura a transição para fase 2, com risco de que o plateau ainda não tivesse sido atingido.
+
+O ReduceLROnPlateau (patience=3, factor=0.5) deve ter atuado múltiplas vezes nessa fase, dado o volume de epochs. Sem o LR final registrado, não é possível confirmar, mas é provável que o LR tenha sido reduzido 2–3× durante a fase 1.
+
+### 3.2 Fase 2 — Unfreeze parcial (11 epochs)
+
+**val_macro_auroc melhor = 0.7662 (epoch 4)**
+
+O ganho de **+0.0632** em apenas 4 epochs após o descongelamento parcial é o sinal mais informativo do treino: confirma que as features de alto nível do Xception (blocos finais) carregavam representações sub-ótimas para CXR quando congeladas. O descongelamento permitiu adaptação rápida.
+
+**Ponto de atenção crítico:** o melhor resultado ocorreu no epoch 4 de 11, indicando que após o epoch 4 o modelo começou a apresentar degradação da val_macro_auroc (razão pela qual o early stopping com patience=7 deixou o treino continuar mas não melhorou). Isso configura **overfitting precoce** na fase 2: o modelo saturou rapidamente a capacidade de generalização com os pesos parcialmente descongelados.
+
+### 3.3 Fase 3 — Unfreeze completo (10 epochs)
+
+**val_macro_auroc melhor = 0.7696 (epoch 3)**
+
+Ganho marginal de apenas **+0.0034** em relação à fase 2. O melhor resultado no epoch 3 segue o mesmo padrão da fase 2: convergência rápida seguida de degradação. O descongelamento completo trouxe benefício mínimo incremental, provavelmente porque:
+
+1. O LR pode não ter sido suficientemente baixo para fine-tune seguro de camadas profundas do Xception sem catastrofismo
+2. O dataset NIH, mesmo com 41.086 imagens, pode ser insuficiente para re-treinar o backbone completo de forma estável
+3. O overfitting já instalado na fase 2 limitou o headroom da fase 3
+
+**Padrão geral das três fases:** convergência cada vez mais rápida (epoch 29 → epoch 4 → epoch 3), sugerindo aceleração do overfitting conforme mais parâmetros são liberados. Isso é consistente com underfitting estrutural no início e overfitting progressivo com o aumento de parâmetros treináveis sem regularização adicional proporcional.
+
+---
+
+## 4. Gap Train vs. Val — Interpretação do Overfitting
+
+Sem os valores explícitos de train_auroc, a evidência de overfitting é **inferida estruturalmente** pelo comportamento de treino:
+
+**Causa provável primária — Capacidade excessiva vs. dados efetivos:**
+O Xception tem ~22.9M parâmetros. Com 41.086 imagens de treino (30.686 originais + 10.400 augmentadas), a razão parâmetros/amostras é alta para um problema de 6 labels. A cabeça densa (Dense(512) + Dense(256)) adiciona ~400K parâmetros adicionais. O Dropout (0.5 e 0.3) é a única regularização explícita além do Focal Loss — insuficiente para conter overfitting em descongelamento completo.
+
+**Causa secundária — Augmentation limitada:**
+Os 10.400 exemplos augmentados representam apenas ~34% do total de treino. Para CXR, augmentation mais agressiva (elastic deformations, mixup label-aware, CutMix) poderia ter expandido o espaço de generalização.
+
+**Causa terciária — Ruído de label NIH:**
+Labels geradas por NLP mining criam um teto de generalização artificial: o modelo não pode superar a qualidade do sinal supervisionado. O overfitting é em parte "overfitting ao ruído", não apenas à distribuição de imagens.
+
+**Impacto esperado no M2:**
+O fine-tuning no CheXpert deve atuar diretamente na causa terciária (labels mais limpas). Para as causas primária e secundária, M2 deverá incorporar regularização adicional ou learning rates menores para os blocos profundos. Sem isso, o overfitting migra de domínio mas não desaparece.
+
+---
+
+## 5. Expectativa para M2
+
+### 5.1 O que o fine-tuning no CheXpert deve resolver
+
+O CheXpert (Stanford) oferece três vantagens estruturais sobre o NIH ChestX-ray14 para este problema:
+
+| Aspecto | NIH ChestX-ray14 | CheXpert | Impacto esperado em M2 |
+|---|---|---|---|
+| Anotação | NLP mining de laudos | NLP + revisão radiologista + política de incerteza explícita | Redução do ruído de label → ganho direto em consolidation e atelectasis |
+| Prevalência de consolidation | ~5% | ~12% | Mais exemplos positivos → melhor calibração da Focal Loss |
+| Prevalência de edema | ~7% | ~15% | Ganho incremental em edema (já alto em M1) |
+| Política de incerteza | Ausente (label binária) | U-ones / U-zeros / U-ignore | Requer decisão explícita em M2 — risco se mal configurado |
+
+### 5.2 Labels com maior expectativa de melhoria
+
+**Consolidation (+0.05–0.12 estimado):** Maior beneficiária. A combinação de labels mais consistentes + maior prevalência no CheXpert deve atacar diretamente a raiz do 0.6493.
+
+**Atelectasis (+0.03–0.07 estimado):** Melhoria moderada esperada. O CheXpert distingue melhor atelectasis de effusion em sua política de anotação.
+
+**Pleural effusion (+0.02–0.04 estimado):** Ganho marginal — já estava em 0.7858, mas a consistência da anotação deve reduzir variância.
+
+**Pneumothorax, cardiomegaly, edema:** Ganhos menores esperados — já próximos do teto do modelo ou com sinal de treinamento já de boa qualidade no NIH.
+
+### 5.3 Target realista para M2
+
+Com fine-tuning no CheXpert sobre os pesos M1, estimativa conservadora: **Macro-AUROC = 0.81–0.84**, colocando M2 ainda abaixo do target (0.85–0.92) mas com gap substancialmente reduzido. O target completo provavelmente requer M3 ou M4 (ensemble, TTA, ou arquitetura com attention mechanisms).
+
+---
+
+## 6. Pontos de Atenção para M2
+
+### 6.1 Risco crítico — Política de incerteza do CheXpert
+
+O CheXpert possui labels com três estados: positivo, negativo e **incerto (U)**. A política adotada para U impacta diretamente o treinamento:
+
+- **U-ones (incerto = positivo):** infla recall, prejudica precision, tende a superestimar AUROC em labels raras
+- **U-zeros (incerto = negativo):** subestima prevalência real, prejudica recall em consolidation e edema
+- **U-ignore (mask na loss):** recomendado, mas requer implementação cuidadosa para não criar batches desbalanceados
+
+**Recomendação:** Usar U-ignore com masked Focal Loss. Validar que a máscara não zera gradientes em mais de 40% dos exemplos por batch para os labels críticos.
+
+### 6.2 Risco moderado — Domain shift NIH → CheXpert
+
+As distribuições de posicionamento (PA vs. AP), equipamentos e populações diferem. Fine-tuning com LR global muito alto pode causar **catastrofismo seletivo** — degradação das features aprendidas no NIH que eram benéficas. 
+
+**Recomendação:** Usar learning rate diferenciado por camada (layer-wise LR decay): blocos finais do Xception com LR = 1e-4, blocos intermediários com LR = 1e-5, blocos iniciais com LR ≤ 1e-6 ou mantidos congelados nas primeiras epochs do fine-tuning CheXpert.
+
+### 6.3 Risco moderado — Vazamento de distribuição no test set
+
+O NIH ChestX-ray14 tem estrutura de paciente-split não trivial. Verificar que o test set de M1 (20.486 imagens) não contém pacientes também presentes no train set — erro comum que infla artificialmente AUROC em todos os labels.
+
+**Recomendação:** Confirmar patient-level split antes de usar os 0.7697 como baseline definitivo.
+
+### 6.4 Recomendação de regularização adicional para M2
+
+Dado o padrão de overfitting rápido observado (melhor epoch em 3–4 nas fases 2 e 3), M2 deve considerar:
+
+- **Label smoothing** (ε=0.05–0.10) combinado com Focal Loss para reduzir confiança excessiva
+- **Stochastic Depth** ou **DropBlock** nos blocos intermediários do Xception
+- **Augmentation aumentada:** elastic deformations específicas para CXR (simular variação de posicionamento) e intensity jitter mais agressivo
+
+### 6.5 Monitoramento adicional recomendado
+
+Além de val_macro_auroc, M2 deve logar:
+
+- **AUPRC por label** — mais informativo que AUROC em classes desbalanceadas (especialmente consolidation ~5%)
+- **Calibration error (ECE)** — crítico para uso clínico downstream
+- **Train vs. val AUROC gap por label** — para identificar quais labels estão em regime de overfitting vs. underfitting individualmente
+
+---
+
+*Relatório gerado para uso interno do ablation study. Próxima revisão após conclusão do treinamento M2.*

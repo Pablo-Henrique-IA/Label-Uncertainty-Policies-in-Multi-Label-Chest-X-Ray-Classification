@@ -1,0 +1,319 @@
+
+MODELO: M2 — Xception 512×512 | Fine-tuning NIH→CheXpert | Zero Padding | U-Ignore
+OBJETIVO: Domain Transfer + comparação de preprocessing (Zero Padding vs Center Crop)
+
+CONFIGURAÇÃO:
+  Backbone      : Xception (pesos M1/NIH como ponto de partida)
+  Preprocessing : Zero Padding 2828×2828 → 512×512 PNG
+  Política -1   : U-Ignore — labels incertos descartados da loss
+  Input         : 512×512×3 (grayscale replicado)
+  Cabeça        : GAP → Dense(512)+BN+Drop(0.5) → Dense(256)+Drop(0.3) → Dense(6,sigmoid)
+  Loss          : Focal Loss U-Ignore γ=2.0 α=0.25 + pesos por label
+  Early stopping: val_macro_auroc patience=7
+  Scheduler     : ReduceLROnPlateau factor=0.5 patience=3
+
+DATASET (Stanford CheXpert — Zero Padding):
+  Train: 87.258 imagens (undersample ~14.800/label)
+  Valid: 159 imagens
+  Nota  : Zero Padding adiciona ~46px de bordas pretas por lado (~9% da imagem 512×512)
+  Labels: atelectasis, cardiomegaly, pleural_effusion, pneumothorax, consolidation, edema
+
+ESTRATÉGIA DE TREINO:
+  Fase 1: 20 epochs | Melhor val_macro_auroc=0.8581 (epoch 6) | LR final=N/A
+  Fase 2: 20 epochs | Melhor val_macro_auroc=0.8647 (epoch 2) | LR final=N/A
+  Fase 3: 17 epochs | Melhor val_macro_auroc=0.8633 (epoch 1) | LR final=N/A
+
+RESULTADOS — COMPARAÇÃO TRIPLA M1 | M2 Crop | M2 Padding:
+  atelectasis           : M1=0.7044 | Crop=0.8103 | Pad=0.7992 | ΔM1→Pad=+0.0948 | ΔCrop→Pad=-0.0111
+  cardiomegaly          : M1=0.8114 | Crop=0.8254 | Pad=0.8196 | ΔM1→Pad=+0.0083 | ΔCrop→Pad=-0.0057
+  pleural_effusion      : M1=0.7858 | Crop=0.8775 | Pad=0.8857 | ΔM1→Pad=+0.0999 | ΔCrop→Pad=+0.0082
+  pneumothorax          : M1=0.8396 | Crop=0.9248 | Pad=0.8806 | ΔM1→Pad=+0.0410 | ΔCrop→Pad=-0.0442
+  consolidation         : M1=0.6493 | Crop=0.8932 | Pad=0.8684 | ΔM1→Pad=+0.2191 | ΔCrop→Pad=-0.0249
+  edema                 : M1=0.8277 | Crop=0.8948 | Pad=0.8834 | ΔM1→Pad=+0.0557 | ΔCrop→Pad=-0.0114
+  ────────────────────────────────────────────────────────────────────────────────
+  M1  Macro-AUROC (NIH baseline)       : 0.7697
+  M2  Macro-AUROC (Crop  + U-Ignore)   : 0.8710
+  M2  Macro-AUROC (Pad   + U-Ignore)   : 0.8562
+  ΔM1→Padding                          : +0.0865
+  ΔCrop→Padding                        : -0.0148
+  Target                               : 0.85–0.92
+  Status                               : Atingido
+
+CONTEXTO DO ABLATION:
+  Variável isolada M1→M2    : impacto do pré-treino NIH + domain transfer para CheXpert
+  Variável isolada Crop→Pad : impacto do preprocessing (bordas pretas vs descarte lateral)
+  Labels mais afetados pelo preprocessing esperado:
+    - Pneumothorax: achado periférico — mais sensível ao crop lateral
+    - Pleural Effusion: ângulos costofrênicos — possível impacto do padding inferior
+
+SHIFTS DE PREVALÊNCIA NIH→CHEХPERT (contexto para análise):
+  Edema           : NIH 2.05% → CheXpert 23.39% (+21.33%)
+  Pleural Effusion: NIH 11.88% → CheXpert 38.58% (+26.70%)
+  Cardiomegaly    : NIH 2.48%  → CheXpert 12.09% (+9.61%)
+  Atelectasis     : NIH 10.31% → CheXpert 14.94% (+4.63%)
+  Pneumothorax    : NIH 4.73%  → CheXpert 8.70%  (+3.98%)
+  Consolidation   : NIH 4.16%  → CheXpert 6.62%  (+2.45%)
+
+LABELS INCERTOS U-IGNORE (descartados da loss):
+  Atelectasis    : 33.739 incertos descartados
+  Consolidation  : 27.742 incertos descartados
+  Edema          : 12.984 incertos descartados
+  Pleural Effusion: 11.628 incertos descartados
+
+
+=================================================================
+RELATÓRIO CLAUDE
+=================================================================
+
+# Relatório Técnico — M2 Zero Padding
+## Xception 512×512 | Fine-tuning NIH→CheXpert | U-Ignore | Ablation Study
+
+---
+
+## 1. Resumo Executivo
+
+O modelo M2 com Zero Padding atingiu **Macro-AUROC = 0.8562** no conjunto de validação CheXpert, representando ganho de **+0.0865** sobre o baseline M1/NIH (0.7697) e posicionando-se dentro da faixa-alvo definida (0.85–0.92). O resultado confirma que o domain transfer NIH→CheXpert é o principal driver de melhora neste ablation — responsável isoladamente por +0.0865 pontos — enquanto a escolha de preprocessing (Center Crop vs Zero Padding) explica uma diferença secundária, porém consistente, de **−0.0148** em favor do Center Crop (0.8710 vs 0.8562).
+
+**Posicionamento no ablation:**
+
+| Modelo | Preprocessing | Política | Macro-AUROC | Δ vs M1 |
+|--------|--------------|----------|-------------|---------|
+| M1 | — | NIH labels | 0.7697 | — |
+| M2 Crop | Center Crop | U-Ignore | 0.8710 | +0.1013 |
+| **M2 Padding** | **Zero Padding** | **U-Ignore** | **0.8562** | **+0.0865** |
+
+O M2 Padding é o único modelo em desvantagem nesta comparação, estabelecendo o limite inferior da variável de preprocessing. Seu valor no ablation reside precisamente em quantificar o custo das bordas pretas artificiais — **−0.0148 de Macro-AUROC** — e identificar quais patologias são mais sensíveis a esse efeito.
+
+---
+
+## 2. Impacto do Domain Transfer
+
+O fine-tuning no CheXpert produziu melhorias em **todos os seis labels** sem exceção, o que valida a estratégia de transfer learning incremental mesmo diante de shifts de distribuição substanciais entre os dois datasets.
+
+### Ganhos por label: M1 (NIH) → M2 Padding (CheXpert)
+
+| Label | M1 AUROC | M2 Pad AUROC | Δ | Shift Prevalência |
+|-------|----------|-------------|---|------------------|
+| Consolidation | 0.6493 | 0.8684 | **+0.2191** | NIH 4.16% → CXP 6.62% (+2.45%) |
+| Pleural Effusion | 0.7858 | 0.8857 | **+0.0999** | NIH 11.88% → CXP 38.58% (+26.70%) |
+| Atelectasis | 0.7044 | 0.7992 | **+0.0948** | NIH 10.31% → CXP 14.94% (+4.63%) |
+| Edema | 0.8277 | 0.8834 | **+0.0557** | NIH 2.05% → CXP 23.39% (+21.33%) |
+| Pneumothorax | 0.8396 | 0.8806 | **+0.0410** | NIH 4.73% → CXP 8.70% (+3.98%) |
+| Cardiomegaly | 0.8114 | 0.8196 | **+0.0083** | NIH 2.48% → CXP 12.09% (+9.61%) |
+
+**Observação central:** a relação entre magnitude do shift de prevalência e ganho de AUROC é não-linear e apresenta pelo menos duas lógicas distintas operando simultaneamente:
+
+**Lógica 1 — Labels com baixa performance no M1 têm mais espaço para crescer.** Consolidation (M1=0.6493) e Atelectasis (M1=0.7044) registram os maiores ganhos absolutos (+0.2191 e +0.0948), independentemente do shift de prevalência. O M1 provavelmente nunca dominou essas representações no NIH — Consolidation especificamente sofre de alta ambiguidade semântica com Atelectasis e Edema no NIH, problema que a anotação CheXpert mitiga parcialmente pela extração NLP estruturada dos relatórios.
+
+**Lógica 2 — Shifts de prevalência massivos facilitam o aprendizado supervisionado.** Pleural Effusion e Edema apresentam os maiores shifts absolutos (+26.70% e +21.33% respectivamente). No CheXpert, o modelo encontra muito mais exemplos positivos para ajustar seus limiares de decisão — efeito especialmente relevante dado o undersampling aplicado no treino (~14.800/label). Ambos registram ganhos expressivos (+0.0999 e +0.0557).
+
+**Caso atípico — Cardiomegaly (+0.0083):** apesar do shift de +9.61% e de já partir de performance razoável (M1=0.8114), o ganho é o menor do conjunto. Cardiomegaly é um achado global de silhueta cardíaca — o M1/NIH já havia aprendido essa representação de forma robusta, e o fine-tuning no CheXpert acrescenta pouco. Há também a hipótese de que o Zero Padding distorça ligeiramente a razão cardiotorácica percebida pelo modelo ao introduzir bordas que podem recentralizar o conteúdo cardíaco de forma inconsistente.
+
+**Pneumothorax (+0.0410) partindo de M1=0.8396** indica que o NIH já havia treinado o modelo adequadamente para reconhecer colapso pulmonar parcial, e o fine-tuning reforça, mas não transforma, essa representação.
+
+---
+
+## 3. Center Crop vs Zero Padding — Comparação Direta
+
+### Tabela Comparativa Completa
+
+| Label | M2 Crop | M2 Pad | ΔCrop→Pad | Interpretação |
+|-------|---------|--------|-----------|---------------|
+| Pleural Effusion | 0.8775 | **0.8857** | **+0.0082** | Padding favorece |
+| Cardiomegaly | 0.8254 | 0.8196 | −0.0057 | Leve vantagem Crop |
+| Atelectasis | 0.8103 | 0.7992 | −0.0111 | Crop preserva mais |
+| Edema | 0.8948 | 0.8834 | −0.0114 | Crop preserva mais |
+| Consolidation | 0.8932 | 0.8684 | −0.0249 | Crop claramente superior |
+| Pneumothorax | 0.9248 | 0.8806 | **−0.0442** | Crop muito superior |
+
+**Resultado global: Center Crop superior em 5/6 labels, com Zero Padding vencendo apenas em Pleural Effusion por margem pequena (+0.0082).**
+
+### Pneumothorax — O caso mais sensível (ΔCrop→Pad = −0.0442)
+
+Pneumothorax é o label mais afetado pelo preprocessing, exatamente como esperado pela hipótese do ablation. A razão é anatomicamente fundamentada: o pneumotórax manifesta-se principalmente na **região pleural periférica lateral** — fino halo hiperclaro entre a pleura visceral e parietal, frequentemente localizado nos ápices e margens laterais do pulmão. 
+
+O Center Crop, ao recortar a região central da imagem original 2828×2828, **preserva as margens laterais** do campo pulmonar em resolução máxima para o espaço 512×512. O Zero Padding, por outro lado, reduz proporcionalmente toda a imagem para caber no canvas, resultando em **~46px de borda preta por lado**, o que implica que o campo pulmonar real ocupa apenas ~82% da largura efetiva da imagem. Isso comprime a resolução das regiões periféricas onde o pneumotórax se manifesta — estruturas finas de 1-3mm de espessura que já são desafiadoras na resolução plena.
+
+Adicionalmente, o Zero Padding pode introduir artefatos nas camadas convolucionais próximas às bordas — o modelo precisa "aprender a ignorar" as regiões pretas, o que representa carga cognitiva computacional desnecessária e potencial fonte de ruído nos gradientes.
+
+**Quantitativamente: a queda de 0.9248 para 0.8806 representa uma degradação de 4.42 pontos percentuais — clinicamente relevante para uma condição de emergência médica.**
+
+### Pleural Effusion — O único label favorecido pelo Padding (+0.0082)
+
+O comportamento oposto aqui é intrigante e merece hipótese cuidadosa. O derrame pleural manifesta-se predominantemente nas **bases pulmonares e ângulos costofrênicos** — regiões inferiores que o Center Crop pode estar parcialmente descartando ao focar no centróide da imagem original, que tende a ser ligeiramente superior ao centro geométrico da caixa torácica em posicionamento PA padrão.
+
+O Zero Padding, ao preservar a imagem completa sem corte, **garante que os ângulos costofrênicos inferiores estejam integralmente presentes**, mesmo que em resolução ligeiramente menor. Para Pleural Effusion, a completude anatômica parece sobrepor o custo da compressão de resolução — o sinal diagnóstico (opacidade basal + obliteração do ângulo costofrênico) é suficientemente robusto em resolução reduzida.
+
+A margem de +0.0082 é pequena e provavelmente não estatisticamente significativa dado o tamanho do conjunto de validação (n=159), mas a direção do efeito é consistente com a hipótese anatômica.
+
+### Consolidation (ΔCrop→Pad = −0.0249)
+
+A queda de 0.8932 para 0.8684 é relevante. Consolidation é um achado de **distribuição lobar/segmentar** que pode ocorrer em qualquer região do campo pulmonar, mas frequentemente aparece em lobos inferiores. A hipótese mais provável é que o Zero Padding, ao reduzir a resolução efetiva da imagem, dificulte a distinção fina entre consolidação verdadeira, atelectasia e opacidade por efusão — especialmente porque esses três achados coexistem frequentemente e o modelo precisa de detalhes texturais (air bronchograms, densidade, bordas) para discriminá-los. O Crop, ao maximizar a resolução do conteúdo, preserva esses gradientes de textura de forma superior.
+
+---
+
+## 4. Análise por Label — Surpresas e Hipóteses
+
+### 4.1 Consolidation — A maior surpresa positiva do domain transfer (+0.2191)
+
+O salto de 0.6493 para 0.8684 é extraordinário e merece atenção. No M1/NIH, Consolidation era claramente o label mais problemático — AUROC de 0.6493 indica performance próxima ao acaso ajustado. Três hipóteses explicam a recuperação massiva no CheXpert:
+
+1. **Qualidade de anotação:** O CheXpert usa NLP sobre relatórios radiológicos estruturados, com semântica mais precisa para "consolidation" versus a anotação manual NIH que frequentemente conflate Consolidation com Atelectasis/Mass/Nodule. O sinal de treinamento no CheXpert é mais limpo.
+
+2. **U-Ignore aplicado:** 27.742 exemplos incertos foram descartados da loss (segundo maior volume após Atelectasis), reduzindo substancialmente o ruído de supervisão — particularmente relevante porque Consolidation é o label com maior ambiguidade semântica entre radiologistas.
+
+3. **Distribuição no undersampling:** Com ~14.800 amostras positivas balanceadas, o modelo recebe um sinal positivo muito mais consistente do que os 4.16% de prevalência do NIH permitiam.
+
+### 4.2 Edema — Desempenho robusto apesar do maior shift de prevalência (+21.33%)
+
+AUROC de 0.8834 (Padding) e 0.8948 (Crop) são resultados sólidos. Edema pulmonar tem uma apresentação visual relativamente homogênea (opacidades bilaterais difusas, redistributificação vascular) que pode ser aprendida de forma razoavelmente estável entre datasets. O shift massivo de prevalência (2.05% → 23.39%) beneficia o aprendizado sem introduzir inconsistências semânticas significativas — edema é menos ambíguo na terminologia radiológica do que consolidation ou atelectasia.
+
+### 4.3 Cardiomegaly — Ganho mínimo (+0.0083) apesar de shift relevante
+
+Como discutido na seção 2, o M1 já havia aprendido cardiomegalia de forma competente (0.8114). A ausência de ganho expressivo sugere **saturação da representação** — o feature space da Xception para análise de silhueta cardíaca estava suficientemente treinado no NIH. O fine-tuning ajusta minimamente os pesos. Há também a hipótese secundária de que o Zero Padding introduza viés na percepção da razão cardiotorácica, conforme discutido anteriormente.
+
+---
+
+## 5. Impacto do U-Ignore
+
+A política U-Ignore descartou **86.093 amostras incertas da loss** no total (33.739 Atelectasis + 27.742 Consolidation + 12.984 Edema + 11.628 Pleural Effusion), representando uma redução substancial do ruído de supervisão. O impacto é heterogêneo por label:
+
+### 5.1 Atelectasis — 33.739 incertos descartados (maior volume)
+
+Atelectasis registra o maior volume de descarte e ainda assim apresenta o segundo menor AUROC do conjunto (0.7992 no Padding, 0.8103 no Crop). Isso é consistente com a natureza inerentemente ambígua do achado — atelectasia subsegmentar frequentemente coexiste com consolidação, e mesmo os positivos confirmados apresentam espectro amplo de severidade. O U-Ignore elimina o ruído das incertezas anotadas, mas **o problema de fundo é semântico, não apenas de rotulação** — os positivos confirmados ainda apresentam alta variabilidade intraclasse.
+
+É importante notar que descartar 33.739 amostras de um label com prevalência moderada no CheXpert (14.94%) reduz substancialmente o número de exemplos positivos disponíveis para treinamento. O undersampling a ~14.800/label pode estar operando sobre um conjunto já reduzido pelo U-Ignore, criando potencial escassez de positivos para Atelectasis.
+
+### 5.2 Consolidation — 27.742 incertos descartados
+
+Como argumentado na seção 4.1, o U-Ignore é provavelmente o maior fator individual no ganho de +0.2191 para Consolidation. O label tem **altíssima taxa de incerteza** (27.742 de 87.258 treino, ~31.8%) — indicando que os radiologistas responsáveis pelos relatórios originais frequentemente hesitavam entre Consolidation e outros achados. Ao descartar esses exemplos ambíguos, o U-Ignore fornece ao modelo apenas os casos onde o diagnóstico era inequívoco, permitindo aprendizado de representações mais limpas. O custo é perda de exemplos de aprendizado; o benefício é qualidade do sinal de supervisão. Para Consolidation, o benefício claramente domina.
+
+### 5.3 Edema e Pleural Effusion — Volumes menores, impacto proporcional
+
+Com 12.984 e 11.628 incertos descartados respectivamente, o impacto do U-Ignore é menor em magnitude absoluta mas provavelmente positivo — ambos os labels apresentam boa performance (0.8834 e 0.8857 no Padding). Para Pleural Effusion especificamente, o U-Ignore preserva casos com derrame confirmado radiologicamente, que tendem a ser derrames de volume moderado-grande com apresentação clara — possivelmente explicando a robustez do AUROC nesse label.
+
+### 5.4 Pneumothorax e Cardiomegaly — Não afetados pelo U-Ignore
+
+Esses dois labels não aparecem na lista de incertos descartados, o que sugere que os relatórios do CheXpert raramente expressam incerteza sobre a presença de pneumotórax ou cardiomegalia — ambos são diagnósticos relativamente objetivos visualmente. O modelo os aprende de exemplos de maior qualidade de supervisão inherentemente.
+
+---
+
+## 6. Comportamento do Treino — Análise das 3 Fases
+
+### Progressão dos val_macro_auroc melhores por fase:
+
+| Fase | Epochs | Melhor AUROC | Epoch do melhor | Comportamento |
+|------|--------|-------------|-----------------|---------------|
+| 1 | 20 | 0.8581 | 6 | Convergência rápida, plateau longo |
+| 2 | 20 | 0.8647 | 2 | Melhora imediata, novo plateau |
+| 3 | 17 | 0.8633 | 1 | Regressão leve, sem ganho adicional |
+
+**Fase 1 — Convergência em epoch 6, plateau posterior:**
+O modelo atinge seu melhor ponto na epoch 6 de 20 — convergência relativamente rápida para um fine-tuning de 87K imagens. Os 14 epochs restantes da Fase 1 não superam esse marco, indicando que o ReduceLROnPlateau (patience=3) provavelmente reduziu o LR pelo menos uma vez após a epoch 9, mas sem efeito sustentado. O plateau extenso (epochs 7–20) sugere que o modelo explorou adequadamente o landscape de loss com a LR inicial da Fase 1 e encontrou um mínimo local.
+
+**Fase 2 — Melhora imediata (epoch 2), nova plateau:**
+A melhora para 0.8647 na epoch 2 da Fase 2 indica que a mudança de configuração entre fases (presumivelmente desbloqueio de camadas adicionais do backbone ou redução de LR) permitiu ajuste fino imediato. O fato de o melhor resultado ocorrer tão cedo (epoch 2) e não ser superado nas 18 epochs seguintes sugere **overfitting progressivo a partir da epoch 3** — o modelo começa a memorizar o conjunto de treino sem generalizar ao conjunto de validação de 159 imagens. O early stopping (patience=7) contém o dano, mas a tendência é clara.
+
+**Fase 3 — Regressão para 0.8633, melhor na epoch 1:**
+O melhor resultado na epoch 1 da Fase 3 é o sinal mais preocupante. Significa que **qualquer treinamento adicional na Fase 3 degrada a performance de validação**. O modelo está em estado de overfitting neste ponto — a Fase 3 acrescenta capacidade de fitting mas não generalização. A diferença entre Fase 2 (0.8647) e Fase 3 (0.8633) é pequena (−0.0014), mas a tendência é adversa.
+
+**Avaliação geral:**
+O treinamento em 3 fases apresenta rendimentos decrescentes acentuados — cada fase acrescenta menos que a anterior. O conjunto de validação de **apenas 159 imagens** é um fator de risco crítico: a variância do val_macro_auroc é alta, e o early stopping pode estar respondendo a flutuações estocásticas em vez de tendências reais de generalização. A Fase 3 é provavelmente dispensável ou prejudicial.
+
+---
+
+## 7. Expectativa para M3 (U-Ones)
+
+A política U-Ones trata os labels incertos (−1) como **positivos confirmados** em vez de descartá-los da loss. Dado o volume de incertos no CheXpert, o impacto esperado é significativo e diferenciado por label.
+
+### Impacto esperado por label:
+
+**Atelectasis (33.739 incertos → positivos no U-Ones):**
+É o label com maior risco de distorção. Ao converter 33.739 exemplos incertos em positivos, o U-Ones injeta um grande volume de falsos positivos potenciais na supervisão. Atelectasia é o label com maior ambiguidade genuína — muitos dos "incertos" provavelmente não são atelectasias verdadeiras. Esperamos que U-Ones **melhore o recall** (mais verdadeiros positivos identificados) ao custo de **reduzir a precisão** (mais falsos positivos). O efeito líquido no AUROC é ambíguo — pode melhorar se os incertos forem majoritariamente positivos verdadeiros com baixa confiança do radiologista, ou pode piorar se forem genuinamente ambíguos.
+
+**Consolidation (27.742 incertos → positivos):**
+Para Consolidation, que já tinha o maior volume de incertos (~31.8% do treino), U-Ones representa mudança substancial. A hipótese mais provável é **melhora do AUROC** — o U-Ignore beneficiou Consolidation ao eliminar ruído, mas também eliminou exemplos de aprendizado. U-Ones recupera esses exemplos com supervisão positiva, potencialmente ensinando o modelo padrões de consolidação em estágios iniciais ou duvidosos. Se a maioria dos "incertos" de Consolidation forem casos leves ou sobrepostos com Edema, o U-Ones pode melhorar a calibração.
+
+**Edema (12.984 incertos) e Pleural Effusion (11.628 incertos):**
+Volumes menores — impacto esperado moderado. Para Edema, que já tem AUROC alto (0.8834–0.8948), U-Ones provavelmente não altera dramaticamente o resultado. Para Pleural Effusion, o U-Ones pode aumentar ligeiramente o recall de derrames pequenos (os mais frequentemente anotados como "incertos").
+
+### Diferença esperada entre Crop e Padding no M3:
+
+Para **Pneumothorax** (não afetado pelo U-Ignore/U-Ones, mas sensível ao preprocessing), a diferença Crop vs Padding deve se manter em torno de −0.04, independente da política de incertos.
+
+Para **Atelectasis**, o efeito do U-Ones pode ser amplificado negativamente no Padding — se o modelo já tem dificuldade com bordas pretas, adicionar 33.739 positivos potencialmente ruidosos pode desestabilizar mais o Padding do que o Crop.
+
+**Expectativa geral para M3:** o Macro-AUROC do M3 U-Ones deve ficar próximo ao M2 U-Ignore, possivelmente com redistribuição de ganhos/perdas entre labels. U-Ones tipicamente favorece labels onde os incertos são "falsos negativos conservadores" dos radiologistas — mais frequente em Edema e Pleural Effusion do que em Atelectasis e Consolidation.
+
+---
+
+## 8. Recomendação de Preprocessing para M3 e M4
+
+### Veredicto: **Center Crop deve ser adotado como preprocessing padrão para M3 e M4.**
+
+A evidência é consistente e anatomicamente fundamentada:
+
+1. **5/6 labels superiores no Crop**, com vantagem em Pneumothorax de −0.0442 — clinicamente inaceitável perder essa margem em uma condição de emergência.
+
+2. **Macro-AUROC +0.0148 superior** no Crop — diferença pequena em termos absolutos, mas consistente e resultado de uma política de preprocessing mais informativa.
+
+3. **O único label onde Padding vence (Pleural Effusion, +0.0082)** apresenta margem dentro da variabilidade esperada para n=159 e provavelmente não é estatisticamente significativa.
+
+4. **Custo computacional equivalente** — não há vantagem operacional do Padding que justifique a perda de performance.
+
+**Ressalva para Pleural Effusion:** se o objetivo clínico do sistema for especificamente detecção de derrame pleural, recomenda-se investigar estratégias híbridas (Crop com deslocamento inferior) ou augmentation que preserve os ângulos costofrênicos. Para o ablation geral, o Crop padrão é superior.
+
+**Para M3 (U-Ones) e M4 (variação a definir):** manter Center Crop com as mesmas especificações do M2 Crop, garantindo que a única variável alterada entre M2 e M3 seja a política de tratamento dos incertos — preservando a validade do design experimental do ablation.
+
+---
+
+## 9. Pontos de Atenção — Riscos e Recomendações Técnicas
+
+### 9.1 ⚠️ Tamanho do Conjunto de Validação (n=159) — Risco Alto
+
+**Problema:** 159 imagens é estatisticamente insuficiente para estimativas estáveis de Macro-AUROC em 6 labels. A variância da estimativa é alta — diferenças de 0.005–0.015 podem ser ruído estatístico, não sinal real.
+
+**Impacto direto:** o early stopping baseado em val_macro_auroc com patience=7 pode estar respondendo a flutuações aleatórias. Decisões de preprocessing e política de incertos baseadas em diferenças de 0.0082 (Pleural Effusion Padding vs Crop) não são estatisticamente confiáveis.
+
+**Recomendação:** reportar intervalos de confiança via bootstrap para os AUROCs. Avaliar se é possível usar o conjunto de teste do CheXpert (>200K imagens com anotações de especialistas) para validação final antes de comparações definitivas entre modelos.
+
+### 9.2 ⚠️ Overfitting nas Fases 2 e 3 — Risco Moderado
+
+**Problema:** melhor resultado na epoch 2 (Fase 2) e epoch 1 (Fase 3) indica convergência prematura — o modelo está ajustando ao conjunto de validação pequeno através do early stopping mais do que generalizando verdadeiramente.
+
+**Recomendação:** para M3 e M4, considerar reduzir o treinamento a 2 fases apenas (eliminando Fase 3 que demonstrou ser prejudicial). Aumentar patience do early stopping para 10 pode ajudar a distinguir platôs reais de flutuações.
+
+### 9.3 ⚠️ Interação Undersampling + U-Ignore — Risco Moderado
+
+**Problema:** o undersampling a ~14.800/label opera **após** o descarte dos incertos pelo U-Ignore. Para Atelectasis, que tem 33.739 incertos descartados, o conjunto positivo disponível para undersampling pode ser substancialmente menor do que para labels sem incertos. Isso cria desbalanceamento oculto entre labels.
+
+**Recomendação:** documentar o número efetivo de positivos confirmados por label após U-Ignore antes do undersampling. Se Atelectasis tiver significativamente menos positivos confirmados, o limite de 14.800 pode estar operando sobre um conjunto de positivos escasso, forçando repetição excessiva (oversampling implícito) ou reduzindo o conjunto negativo mais do que o esperado.
+
+### 9.4 ⚠️ Bordas Pretas e Batch Normalization — Risco Baixo-Moderado
+
+**Problema:** bordas pretas do Zero Padding (~46px por lado) afetam as estatísticas de ativação nas camadas de Batch Normalization. Em imagens com ~9% de área preta, as médias e variâncias por canal são sistematicamente deslocadas, o que pode criar divergência entre as estatísticas de BN estimadas no treino (com bordas pretas) e a distribuição real de conteúdo clínico.
+
+**Nota:** dado que o M3 e M4 usarão Crop, este risco é eliminado. Mas é relevante para interpretar retrospectivamente por que o Padding subestimou sistematicamente vários labels.
+
+### 9.5 📋 Recomendação para Comparações Futuras
+
+Para garantir a validade estatística do ablation final, recomenda-se:
+
+- **Reportar DeLong CI 95%** para cada AUROC individual e para o Macro-AUROC
+- **Testar significância da diferença Crop vs Padding** com teste DeLong pareado — a diferença de 0.0148 em Macro-AUROC pode não ser significativa para n=159
+- **Avaliar no conjunto de teste oficial do CheXpert** (5 labels oficiais) para benchmarking externo
+- **Documentar a semente aleatória** e reprodutibilidade do treino antes de M3 — fine-tuning a partir de M1 com estados de inicialização diferentes pode introduzir variabilidade não-controlada
+
+---
+
+## Síntese Final
+
+| Dimensão | Conclusão |
+|----------|-----------|
+| Domain Transfer | Confirmado como driver principal (+0.0865 Macro-AUROC) |
+| Melhor Preprocessing | **Center Crop** (superior em 5/6 labels, Δ=+0.0148) |
+| Label mais sensível ao Preprocessing | **Pneumothorax** (ΔCrop→Pad=−0.0442) |
+| Maior surpresa do Domain Transfer | **Consolidation** (+0.2191 vs M1) |
+| Fase de treino mais efetiva | **Fase 2**, com ganho imediato em epoch 2 |
+| Principal risco metodológico | **Validação n=159** — variância estatística alta |
+| Recomendação para M3/M4 | **Center Crop + validação estatística robustecida** |

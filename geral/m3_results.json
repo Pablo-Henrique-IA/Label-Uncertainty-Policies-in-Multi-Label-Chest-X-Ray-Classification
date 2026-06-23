@@ -1,0 +1,20 @@
+{
+  "model": "M3_Crop_UOnes",
+  "policy": "U-Ones",
+  "preprocessing": "Center Crop",
+  "label_smoothing": 0.05,
+  "macro_auroc": 0.8402749173198246,
+  "epochs": {
+    "p1": 15,
+    "p2": 40,
+    "p3": 30
+  },
+  "per_label_auroc": {
+    "atelectasis": 0.7966666666666666,
+    "cardiomegaly": 0.7715868361029651,
+    "pleural_effusion": 0.868421052631579,
+    "pneumothorax": 0.931390977443609,
+    "consolidation": 0.8599901574803149,
+    "edema": 0.8135938135938137
+  }
+}

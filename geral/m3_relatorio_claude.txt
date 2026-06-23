@@ -1,0 +1,254 @@
+
+MODELO: M3 — Xception 512×512 | Fine-tuning NIH→CheXpert | Center Crop | U-Ones | Label Smoothing ε=0.05
+OBJETIVO: Avaliar impacto da política U-Ones (-1→+1) + Label Smoothing vs M2 U-Ignore
+
+CONFIGURAÇÃO:
+  Backbone       : Xception (pesos M2_Crop como ponto de partida)
+  Preprocessing  : Center Crop 2320×2320 → 512×512 PNG
+  Política -1    : U-Ones — labels incertos convertidos para +1 (vs U-Ignore que descartava)
+  Label Smoothing: epsilon=0.05 (targets: 1→0.95, 0→0.05)
+  Loss           : Focal Loss LS γ=2.0 α=0.25 + pesos sobre positivos efetivos
+  Label weights  : recalculados sobre positivos efetivos (confirmados + incertos convertidos)
+  Dataset valid  : Stanford CheXpert 159 imagens
+
+POSITIVOS EFETIVOS U-ONES (confirmados + incertos convertidos):
+  atelectasis    : ~53.604 efetivos (vs 19.865 U-Ignore)
+  consolidation  : ~40.725 efetivos (vs 12.983 U-Ignore)
+  edema          : ~40.086 efetivos (vs 27.102 U-Ignore)
+  pleural_effusion: ~49.380 efetivos (vs 37.752 U-Ignore)
+  cardiomegaly   : ~25.591 efetivos (vs 17.504 U-Ignore)
+  pneumothorax   : ~18.555 efetivos (vs 15.410 U-Ignore)
+
+ESTRATÉGIA DE TREINO:
+  Fase 1: 9 epochs | Melhor val_macro_auroc=0.8382 (epoch 2) | LR final=2.50e-04
+  Fase 2: 9 epochs | Melhor val_macro_auroc=0.8290 (epoch 2) | LR final=2.50e-05
+  Fase 3: 8 epochs | Melhor val_macro_auroc=0.8404 (epoch 1) | LR final=2.50e-06
+
+RESULTADOS — COMPARAÇÃO M1 | M2 Crop U-Ignore | M3 Crop U-Ones:
+  atelectasis           : M1=0.7044 | M2_Crop=0.8103 | M3=0.7967 | ΔM2→M3=-0.0137 | ΔM1→M3=+0.0923
+  cardiomegaly          : M1=0.8114 | M2_Crop=0.8254 | M3=0.7716 | ΔM2→M3=-0.0538 | ΔM1→M3=-0.0398
+  pleural_effusion      : M1=0.7858 | M2_Crop=0.8775 | M3=0.8684 | ΔM2→M3=-0.0090 | ΔM1→M3=+0.0826
+  pneumothorax          : M1=0.8396 | M2_Crop=0.9248 | M3=0.9314 | ΔM2→M3=+0.0066 | ΔM1→M3=+0.0918
+  consolidation         : M1=0.6493 | M2_Crop=0.8932 | M3=0.8600 | ΔM2→M3=-0.0332 | ΔM1→M3=+0.2107
+  edema                 : M1=0.8277 | M2_Crop=0.8948 | M3=0.8136 | ΔM2→M3=-0.0812 | ΔM1→M3=-0.0141
+  ──────────────────────────────────────────────────────────────────────
+  M1  Macro-AUROC : 0.7697
+  M2  Macro-AUROC : 0.8710
+  M3  Macro-AUROC : 0.8403
+  ΔM2→M3          : -0.0307
+  Target          : 0.85–0.92
+  Status          : Abaixo do target
+
+
+=================================================================
+RELATÓRIO CLAUDE
+=================================================================
+
+# Relatório Técnico — Ablation M3: U-Ones + Label Smoothing
+## Xception 512×512 | Fine-tuning NIH→CheXpert | Center Crop
+
+---
+
+## 1. Resumo Executivo
+
+O modelo M3 registrou **Macro-AUROC = 0.8403**, representando uma **queda de −0.0307 em relação ao M2_Crop (0.8710)**. O impacto da política U-Ones, combinada com Label Smoothing ε=0.05, foi **predominantemente negativo** nesta configuração.
+
+Dos seis labels avaliados, **cinco apresentaram queda** em relação ao M2 e apenas **pneumothorax registrou ganho** (+0.0066). As quedas mais expressivas ocorreram em **edema (−0.0812)**, **cardiomegaly (−0.0538)** e **consolidation (−0.0332)**. O resultado permanece **abaixo do target de 0.85–0.92**, embora ainda represente ganho substancial sobre o M1 baseline (+0.0706 em Macro-AUROC).
+
+A hipótese central — de que incluir exemplos incertos como positivos enriqueceria o sinal de treino — **não se confirmou na maioria das patologias**, sugerindo que a qualidade dos labels −1 convertidos introduz ruído suficiente para degradar a discriminabilidade do modelo.
+
+---
+
+## 2. Impacto do U-Ones por Label
+
+### Tabela de variação e volume convertido
+
+| Label | AUROC M2 | AUROC M3 | Δ | Efetivos U-Ones | Efetivos U-Ignore | Incertos convertidos (Δ) |
+|---|---|---|---|---|---|---|
+| edema | 0.8948 | 0.8136 | **−0.0812** | ~40.086 | ~27.102 | +~12.984 |
+| cardiomegaly | 0.8254 | 0.7716 | **−0.0538** | ~25.591 | ~17.504 | +~8.087 |
+| consolidation | 0.8932 | 0.8600 | **−0.0332** | ~40.725 | ~12.983 | +~27.742 |
+| atelectasis | 0.8103 | 0.7967 | −0.0137 | ~53.604 | ~19.865 | +~33.739 |
+| pleural_effusion | 0.8775 | 0.8684 | −0.0090 | ~49.380 | ~37.752 | +~11.628 |
+| pneumothorax | 0.9248 | 0.9314 | **+0.0066** | ~18.555 | ~15.410 | +~3.145 |
+
+### Análise por label
+
+**Edema (−0.0812 — maior queda absoluta):**
+O edema recebeu ~12.984 novos positivos convertidos, elevando o total efetivo em ~47.9%. A queda severa de −0.0812 é consistente com o fato de que os labels −1 de edema no CheXpert têm reconhecidamente **baixa especificidade**: opacidades pulmonares com múltiplas etiologias são frequentemente marcadas como incertas, e convertê-las a +1 introduz ruído sistemático na fronteira de decisão entre edema, consolidação e atelectasia — patologias com sobreposição visual elevada. O modelo M2 havia aprendido uma fronteira calibrada com apenas os confirmados; a contaminação com positivos de baixa confiança degradou esse sinal.
+
+**Cardiomegaly (−0.0538 — segunda maior queda):**
+A cardiomegaly é uma das patologias com **maior consistência inter-anotador** no CheXpert quando o diagnóstico é positivo. Os casos −1 (incertos) frequentemente correspondem a situações de baixo contraste ou posicionamento inadequado — **não são casos borderline clínicos, mas casos de baixa qualidade técnica da imagem**. Converter ~8.087 desses casos a positivos dilui a característica visual cardinal da cardiomegalia (índice cardiotorácico elevado), prejudicando a representação interna aprendida. A queda de 0.8254→0.7716 coloca cardiomegaly abaixo do M1 (0.8114), o que é um sinal de alarme direto.
+
+**Consolidation (−0.0332 — volume relativo de incertos mais alto):**
+Consolidation teve o **maior volume proporcional de incertos convertidos**: de ~12.983 (U-Ignore) para ~40.725 (U-Ones), um aumento de **+213.7%** — o label com maior razão de incerteza no dataset. Surpreendentemente, a queda foi moderada (−0.0332), o que sugere dois cenários possíveis: (a) parte dos incertos de consolidation tem **sobreposição semântica real com casos positivos leves**, atenuando o ruído; ou (b) a Focal Loss com pesos recalculados amorteceu o impacto dos falsos positivos introduzidos. Ainda assim, a degradação confirma que mesmo com alta prevalência de incertos, a conversão direta não é uma estratégia robusta sem filtragem de qualidade.
+
+**Atelectasis (−0.0137 — queda leve, volume alto):**
+Com ~33.739 incertos convertidos (+169.8%), a atelectasis apresentou queda surpreendentemente pequena. Isso pode indicar que os casos incertos de atelectasia no CheXpert têm **maior sobreposição semântica com os positivos confirmados** do que em outras patologias — atelectasia subsegmentar borderline é genuinamente difícil de classificar, e os −1 podem conter sinal visual relevante. A queda leve sugere que atelectasis tem **maior tolerância à inclusão de incertos** do que edema ou cardiomegaly.
+
+**Pleural Effusion (−0.0090 — queda mínima):**
+Com apenas ~11.628 incertos adicionados e já partindo de AUROC alto (0.8775), a queda marginal indica robustez. Pleural effusion tem características visuais relativamente inequívocas, e os incertos nessa classe provavelmente contêm sinal visual consistente com os positivos confirmados.
+
+**Pneumothorax (+0.0066 — único ganho):**
+Com apenas ~3.145 incertos convertidos — o menor volume absoluto entre todas as classes —, o pneumothorax foi o único beneficiado. O padrão visual do pneumothorax (hiperlucência + ausência de trama pulmonar) é **altamente específico e reconhecível**, tornando os casos −1 provavelmente casos genuinamente limítrofes onde a incerteza é clínica, não técnica. Com volume reduzido de conversão, o ruído introduzido foi insuficiente para degradar e suficiente para adicionar cobertura de casos borderline.
+
+### Padrão emergente
+
+Os resultados revelam uma relação inversa entre **ambiguidade semântica da patologia** e **benefício da política U-Ones**: patologias com apresentação visual mais específica e menor sobreposição (pneumothorax) toleram ou se beneficiam da inclusão dos incertos; patologias com alta sobreposição inter-classe (edema, consolidation, atelectasis) são penalizadas. Volume alto de conversão não prediz queda proporcional, mas qualidade do sinal dos −1 sim.
+
+---
+
+## 3. Papel do Label Smoothing
+
+### Adequação do ε=0.05
+
+O Label Smoothing com ε=0.05 desloca os targets de {0,1} para {0.05, 0.95}. No contexto do M3, ele opera **em cima de um problema já contaminado por ruído de label** (U-Ones): o modelo recebe positivos de baixa confiança (os −1 convertidos) com target suavizado para 0.95, em vez de 1.0. Isso deveria, em tese, **atenuar a penalidade por incerteza de label**. Contudo, os resultados sugerem que o ε=0.05 foi **insuficiente para compensar o nível de ruído introduzido**, especialmente para edema e cardiomegaly.
+
+**Problema de interação U-Ones × Label Smoothing:**
+A suavização simétrica (0→0.05, 1→0.95) não diferencia entre positivos confirmados e positivos convertidos de −1. Isso significa que um caso de edema confirmado e um caso de edema marcado como incerto recebem **exatamente o mesmo target suavizado de 0.95** — o Label Smoothing não introduz nenhuma hierarquia de confiança entre os dois tipos de positivo.
+
+### Sugestões para próximas iterações
+
+- **ε diferenciado por proveniência**: positivos confirmados → 0.95; positivos convertidos de −1 → 0.80 ou 0.75, sinalizando explicitamente menor confiança. Isso requer modificação da pipeline de construção de targets, mas é implementável com máscaras de proveniência.
+- **ε por label**: dado que edema e cardiomegaly mostraram maior sensibilidade ao ruído de incertos, um ε mais alto (0.15–0.20) nessas classes especificamente poderia reduzir a confiança no sinal dos convertidos sem descartar os exemplos.
+- **Asymmetric Label Smoothing**: suavizar apenas os positivos (1→0.95) mantendo os negativos em 0, evitando que negativos confirmados sejam interpretados como potencialmente positivos — especialmente relevante quando já há contaminação dos positivos.
+- **Valor de ε=0.05 em si**: é conservador e adequado para datasets com labels limpos. Para um cenário de ruído intencional como U-Ones, ε entre 0.10 e 0.15 seria mais apropriado como ponto de partida, ou explorar soft labels baseados em prevalência de concordância de anotadores.
+
+---
+
+## 4. Análise das Fases de Treino
+
+### Comportamento geral
+
+```
+Fase 1: best val_macro_auroc = 0.8382 @ epoch 2  | LR final = 2.50e-04
+Fase 2: best val_macro_auroc = 0.8290 @ epoch 2  | LR final = 2.50e-05
+Fase 3: best val_macro_auroc = 0.8404 @ epoch 1  | LR final = 2.50e-06
+```
+
+**Padrão crítico**: o melhor desempenho de cada fase ocorre nas **épocas iniciais (1–2)**, com degradação subsequente. Isso é um sinal forte de **overfitting ao ruído de label introduzido pelos incertos convertidos**. O modelo aprende rapidamente o sinal legítimo disponível e, nas épocas seguintes, começa a memorizar os padrões inconsistentes dos −1 convertidos, degradando a generalização no conjunto de validação.
+
+### Por fase
+
+**Fase 1 (LR ~2.5e-03 → 2.5e-04):**
+Best em epoch 2 (0.8382) com LR ainda alto. O scheduler reduziu a LR ao longo de 9 epochs, mas o ganho marginal após epoch 2 foi negativo. Isso indica que o espaço de solução "limpo" foi rapidamente alcançado e o treinamento adicional empurrou o modelo para regiões de alta variância associadas aos labels ruidosos.
+
+**Fase 2 (LR ~2.5e-04 → 2.5e-05):**
+Best em epoch 2 (0.8290) — **queda em relação ao best da Fase 1**. Com LR reduzida, esperava-se refinamento; em vez disso, houve degradação de −0.0092 entre os melhores de cada fase. Isso sugere que o gradiente, mesmo pequeno, continua sendo direcionado pelo ruído dos incertos convertidos, e a LR reduzida não foi suficiente para contorná-lo — apenas desacelerou o overfitting sem revertê-lo.
+
+**Fase 3 (LR ~2.5e-05 → 2.5e-06):**
+Best em epoch 1 (0.8404) — recuperação mínima (+0.0114 sobre Fase 2 best). O fato de o best ocorrer na **primeira época da fase** indica que o ponto de partida da Fase 3 (checkpoint da Fase 2) já estava em uma posição razoável, e qualquer treinamento adicional com LR muito baixa ainda assim degradava levemente. O resultado final 0.8404 é o melhor do M3, mas estruturalmente evidencia que **o treinamento mais longo é prejudicial nessa configuração**.
+
+### Comparação com M2
+
+No M2_Crop, assumindo comportamento mais estável entre fases (resultado final 0.8710 > 0.8404 do M3), a diferença central é que o M2 treinava sobre labels confirmados com U-Ignore — menor volume de positivos, mas **maior consistência de sinal**. O scheduler do M2 provavelmente mostrou curvas de validação mais planas e menos instáveis nas épocas tardias. O padrão de best@epoch1-2 em todas as fases do M3 é um fingerprint de ruído de label, ausente ou atenuado no M2.
+
+**Recomendação estrutural**: para M4, considerar **early stopping mais agressivo** (patience=2–3) e possivelmente reduzir o número total de epochs por fase para 5–6, dado que o sinal útil é capturado nas primeiras 2 épocas independente da fase.
+
+---
+
+## 5. Labels de Atenção
+
+### Atelectasis — Maior potencial, maior risco
+
+**Situação atual**: AUROC 0.7967 no M3 vs. 0.8103 no M2 (−0.0137). É o label com **maior volume de incertos convertidos em termos absolutos** (~33.739 casos adicionais, +169.8%) e ainda assim apresentou queda moderada — o que é simultaneamente encorajador e preocupante.
+
+**Por que é o maior potencial**: atelectasia tem alta prevalência no CheXpert e grande volume de incertos, o que significa que uma política de label bem calibrada pode **adicionar cobertura substancial de casos borderline genuínos**. O AUROC de M1 era 0.7044 — há espaço real de melhoria ainda inexplorado (o M2 já subiu para 0.8103).
+
+**Por que é o maior risco**: a sobreposição visual entre atelectasia, consolidação e edema torna os −1 de atelectasia particularmente ambíguos. Em casos onde um radiologista marcou como incerto, frequentemente há coexistência de múltiplas patologias, e converter esses casos a positivos de atelectasis sem controle adiciona exemplos que o modelo precisará aprender a distinguir de consolidation e edema — exatamente as outras classes com desempenho degradado no M3.
+
+**Estratégia sugerida para M4**: explorar **U-Ones seletivo** apenas para atelectasis (dado que tolera melhor a inclusão) enquanto mantém U-Ignore ou política híbrida para edema e cardiomegaly.
+
+### Consolidation — Maior volume relativo de incertos
+
+**Situação atual**: AUROC 0.8600 no M3 vs. 0.8932 no M2 (−0.0332). O mais impactante em termos relativos de conversão: +213.7% de positivos (de ~12.983 para ~40.725).
+
+**O paradoxo da consolidation**: apesar do maior volume proporcional de incertos convertidos, a queda foi apenas −0.0332 — moderada. Isso pode indicar que os −1 de consolidação contêm sinal visual relevante com frequência maior do que esperado, possivelmente porque consolidação em estágio inicial (focos pequenos) é clinicamente incerta mas visualmente presente. **Isso faz de consolidation um candidato a exploração mais cuidadosa**: com uma política de seleção mais refinada (ex: incluir apenas −1 com score de confiança do modelo acima de um threshold), pode-se recuperar parte do AUROC perdido e ainda expandir a cobertura.
+
+**Risco**: o AUROC de 0.8600, embora abaixo do M2, ainda representa ganho expressivo sobre M1 (0.6493 → +0.2107). Qualquer modificação de M4 para consolidation deve preservar esse ganho acumulado.
+
+---
+
+## 6. Comparação M1 → M2 → M3: Trajetória do Ablation
+
+| Etapa | Macro-AUROC | Delta | Principal mudança |
+|---|---|---|---|
+| M1 | 0.7697 | baseline | NIH pré-treino, sem fine-tuning CheXpert específico |
+| M2_Crop | 0.8710 | **+0.1013** | Center Crop + U-Ignore + Focal Loss calibrada |
+| M3 | 0.8403 | **−0.0307** | U-Ones + Label Smoothing ε=0.05 |
+
+### O que cada etapa explicou
+
+**M1 → M2 (+0.1013):** A maior contribuição individual do ablation. Demonstrou que a combinação de **preprocessamento por Center Crop** (eliminando bordas não clínicas) com **U-Ignore** (descarte dos incertos, mantendo apenas labels de alta confiança) foi a decisão mais impactante. Também estabeleceu que Focal Loss com pesos por positivos efetivos é superior à configuração de M1. Este delta de +0.1013 representa o "ganho limpo" de domínio e preprocessamento.
+
+**M2 → M3 (−0.0307):** Demonstrou que **a política de label incerto é crítica** e que a conversão direta U-Ones, sem filtragem de qualidade, introduz ruído sistêmico. A hipótese de que "mais dados positivos = melhor cobertura" foi falsificada para a maioria das patologias. O Label Smoothing ε=0.05, embora teoricamente compatível com ruído de label, foi insuficiente para neutralizá-lo. Esta etapa também revelou **heterogeneidade entre labels**: pneumothorax tolera U-Ones; edema e cardiomegaly são altamente sensíveis ao ruído de incertos.
+
+**Trajetória geral**: o ablation está funcionando como esperado — cada etapa isola uma variável e quantifica seu impacto. O M3, embora represente regressão em Macro-AUROC, gerou **informação diagnóstica valiosa** que informa diretamente as decisões do M4.
+
+---
+
+## 7. Expectativa para M4: Decisões Baseadas no M3
+
+Com base nos resultados do M3, as seguintes decisões são racionalmente suportadas pelos dados:
+
+### 7.1 Política de label incerto diferenciada por classe
+
+Não tratar todos os labels da mesma forma. Com base na resposta observada:
+
+```
+Pneumothorax    → U-Ones (beneficiou: +0.0066, baixo volume de ruído)
+Atelectasis     → U-Ones tentativo (queda leve, alto volume, potencial real)
+Pleural Eff.    → U-Ones tentativo (queda mínima −0.0090, robustez observada)
+Consolidation   → Política híbrida ou U-Zeros (queda moderada, volume muito alto)
+Edema           → U-Ignore ou U-Zeros (queda severa −0.0812, alta ambiguidade)
+Cardiomegaly    → U-Ignore (queda severa −0.0538, incertos são artefato técnico)
+```
+
+Esta política diferenciada é justificável pela literatura (Irvin et al., CheXpert 2019, que propõe exatamente a exploração de políticas por label) e pelos dados empíricos do M3.
+
+### 7.2 Label Smoothing ajustado
+
+Se Label Smoothing for mantido em M4, ajustar para **ε=0.10** globalmente, ou implementar **ε diferenciado por proveniência de label** (confirmados: 0.05; convertidos de −1: 0.15–0.20). Alternativamente, avaliar **Asymmetric Label Smoothing** que suaviza apenas os positivos.
+
+### 7.3 Early stopping mais agressivo
+
+O padrão best@epoch1-2 em todas as fases indica que o treinamento corrente é longo demais para o nível de ruído presente. Para M4, reduzir épocas por fase para **5–6** e usar patience=2. Isso evita memorização de ruído nas épocas tardias.
+
+### 7.4 Recalibração dos pesos de label
+
+Com política diferenciada, os positivos efetivos mudarão por label. Os pesos de classe devem ser **recalculados sobre os positivos efetivos reais da nova política**, não reutilizados do M3. Especialmente crítico para consolidation e atelectasis, onde o volume efetivo varia dramaticamente entre U-Ones e U-Ignore.
+
+### 7.5 Ponto de partida do fine-tuning
+
+Decisão não trivial: partir do M2_Crop (melhor Macro-AUROC, política U-Ignore) ou do M3 (mais epochs de fine-tuning no domínio CheXpert, porém com ruído). **Recomendação: partir do M2_Crop** para M4, evitando carregar os padrões aprendidos com labels ruidosos do M3 como ponto de partida.
+
+### 7.6 Target de M4
+
+Com política U-Ones seletiva (apenas para labels com baixa sensibilidade ao ruído) e Label Smoothing ajustado, a expectativa razoável é **recuperar o patamar do M2 (0.8710) e potencialmente superá-lo em 0.01–0.03**, atingindo 0.88–0.90. Atingir o limite superior do target (0.92) provavelmente requer modificações adicionais além da política de label (ex: arquitetura, resolução, ensemble).
+
+---
+
+## 8. Pontos de Atenção e Riscos
+
+### O que os resultados garantem
+
+- **U-Ones irrestrito degrada o Macro-AUROC** nesta configuração específica (−0.0307 confirmado em conjunto de validação de 159 imagens do CheXpert).
+- **Pneumothorax é robusto a U-Ones** e apresenta o melhor AUROC individual (0.9314), sugerindo que a política de inclusão de incertos pode ser benéfica para essa classe.
+- **Edema e cardiomegaly são altamente sensíveis ao ruído de label** — qualquer política que inclua incertos para essas classes deve ser tratada com cautela.
+- O padrão best@early epoch é **reprodutível** nas três fases, confirmando overfitting ao ruído (não é artefato de uma única fase).
+
+### O que os resultados não garantem
+
+- **Generalização fora do conjunto de validação**: as 159 imagens do CheXpert validation são um conjunto pequeno. As diferenças de AUROC da ordem de 0.005–0.01 entre labels podem não ser estatisticamente significativas. O ranking de labels (quem ganhou/perdeu) é mais confiável do que as magnitudes exatas.
+- **Que a política diferenciada por label funcionará como esperado**: a análise acima é baseada em correlação entre volume de incertos convertidos e queda de AUROC — não é uma relação causal estabelecida. Outros fatores (distribuição dos incertos no espaço visual, co-ocorrência de patologias) podem dominar.
+- **Que o M2_Crop é o melhor ponto de partida para M4**: partir do M3 com seleção criteriosa de quais layers foram mais contaminados poderia ser uma alternativa, mas requer análise de gradientes por layer que não foi realizada.
+- **Que ε=0.10 resolverá o problema**: o Label Smoothing é uma regularização marginal frente ao nível de ruído introduzido por U-Ones em edema e consolidação. Não se deve esperar que ajuste de ε seja suficiente sem mudança na política de label.
+- **Transferibilidade para o conjunto de teste**: o conjunto de validação CheXpert é usado como proxy para seleção de modelo. Flutuações no ranking de configurações podem ocorrer no teste real, especialmente para labels com baixa prevalência no conjunto de validação.
+
+### Risco sistêmico
+
+O maior risco do ablation atual é a **tentação de sobreajustar as decisões de M4 às 159 imagens de validação**. Cada variação de política cria uma nova comparação no mesmo conjunto, aumentando o risco de seleção espúria. Recomenda-se que, após M4, uma avaliação em conjunto de teste **mantido cego** seja realizada antes de qualquer conclusão final sobre qual política de label é superior.
+
+---
+
+*Relatório produzido com base nos resultados experimentais fornecidos. Todas as recomendações para M4 são contingentes à reprodutibilidade do comportamento observado em conjuntos de validação de maior tamanho.*

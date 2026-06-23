@@ -1,0 +1,324 @@
+
+EXPERIMENTO: Avaliação Comparativa M2 — Center Crop vs Zero Padding
+OBJETIVO: Determinar qual estratégia de preprocessing preserva mais informação diagnóstica
+          para classificação multi-label de radiografias de tórax (6 patologias)
+
+CONFIGURAÇÃO DOS MODELOS:
+  Backbone      : Xception 512×512 (ImageNet → NIH → CheXpert)
+  Política -1   : U-Ignore (labels incertos descartados da loss)
+  Loss          : Focal Loss γ=2.0 α=0.25 + pesos por label
+  Dataset valid : Stanford CheXpert — 159 imagens
+  Labels        : atelectasis, cardiomegaly, pleural_effusion, pneumothorax, consolidation, edema
+
+PREPROCESSING:
+  Center Crop : Recorta 2320×2320 a partir do centro → resize 512×512 (descarta ~254px por lado)
+  Zero Padding: Adiciona bordas pretas até 2828×2828 → resize 512×512 (~46px pretos por lado, ~9% área)
+
+RESULTADOS POR LABEL — MÉTRICAS COMPLETAS:
+  atelectasis           : M1=0.7044 | Crop AUROC=0.8103 | Pad AUROC=0.7992 | ΔCrop→Pad=+0.0111 | AUPRC Crop=0.7466 | AUPRC Pad=0.7399 | F1 Crop=0.6757 | F1 Pad=0.6696 | Sens Crop=1.0000 | Sens Pad=1.0000 | Spec Crop=0.1429 | Spec Pad=0.1190 | DeLong=ns (p=0.8192)
+  cardiomegaly          : M1=0.8114 | Crop AUROC=0.8254 | Pad AUROC=0.8196 | ΔCrop→Pad=+0.0057 | AUPRC Crop=0.7763 | AUPRC Pad=0.7651 | F1 Crop=0.7179 | F1 Pad=0.6988 | Sens Crop=0.8485 | Sens Pad=0.8788 | Spec Crop=0.6344 | Spec Pad=0.5484 | DeLong=ns (p=0.9016)
+  pleural_effusion      : M1=0.7858 | Crop AUROC=0.8773 | Pad AUROC=0.8857 | ΔCrop→Pad=-0.0084 | AUPRC Crop=0.8438 | AUPRC Pad=0.8386 | F1 Crop=0.7020 | F1 Pad=0.7600 | Sens Crop=0.8281 | Sens Pad=0.8906 | Spec Crop=0.6421 | Spec Pad=0.6947 | DeLong=ns (p=0.8161)
+  pneumothorax          : M1=0.8396 | Crop AUROC=0.9248 | Pad AUROC=0.8806 | ΔCrop→Pad=+0.0442 | AUPRC Crop=0.6081 | AUPRC Pad=0.5172 | F1 Crop=0.4762 | F1 Pad=0.3846 | Sens Crop=0.7143 | Sens Pad=0.7143 | Spec Crop=0.9408 | Spec Pad=0.9079 | DeLong=ns (p=0.5855)
+  consolidation         : M1=0.6493 | Crop AUROC=0.8932 | Pad AUROC=0.8684 | ΔCrop→Pad=+0.0249 | AUPRC Crop=0.5975 | AUPRC Pad=0.5818 | F1 Crop=0.5167 | F1 Pad=0.5556 | Sens Crop=0.9688 | Sens Pad=0.9375 | Spec Crop=0.5512 | Spec Pad=0.6378 | DeLong=ns (p=0.5401)
+  edema                 : M1=0.8277 | Crop AUROC=0.8948 | Pad AUROC=0.8834 | ΔCrop→Pad=+0.0114 | AUPRC Crop=0.7525 | AUPRC Pad=0.7213 | F1 Crop=0.6260 | F1 Pad=0.6357 | Sens Crop=0.9762 | Sens Pad=0.9762 | Spec Crop=0.5897 | Spec Pad=0.6068 | DeLong=ns (p=0.7581)
+
+MACRO (média das 6 patologias):
+  Crop  : AUROC=0.8710 | AUPRC=0.7208 | F1=0.6191 | Sens=0.8893 | Spec=0.5835 | Brier=0.1861
+  Pad   : AUROC=0.8562 | AUPRC=0.6940 | F1=0.6174 | Sens=0.8996 | Spec=0.5858 | Brier=0.1910
+  Δ Crop→Pad: AUROC=+0.0148 | AUPRC=+0.0268 | F1=+0.0017
+
+BASELINE M1 (NIH — sem fine-tuning CheXpert):
+  Macro-AUROC: 0.7697
+  Ganho M1→Crop  : +0.1013
+  Ganho M1→Pad   : +0.0865
+
+TESTE ESTATÍSTICO DELONG (comparação de AUROCs, n=159):
+  Labels com diferença significativa (p<0.05): []
+  Nota: n=159 limita o poder estatístico — diferenças clinicamente relevantes podem não atingir significância
+
+CONTEXTO DO ABLATION:
+  Variável isolada M1→M2 : impacto do domain transfer NIH→CheXpert
+  Variável isolada Crop→Pad: impacto exclusivo do preprocessing
+  Decisão desta seção informa diretamente M3 e M4
+
+
+=================================================================
+RELATÓRIO CLAUDE
+=================================================================
+
+# Relatório Técnico: Ablation Study M2 — Center Crop vs Zero Padding
+### Classificação Multi-Label CXR | Xception 512×512 | CheXpert Validation (n=159)
+
+---
+
+## 1. Resumo Executivo
+
+**O Center Crop venceu em 5 das 6 patologias por AUROC**, com margem macro de **ΔAUROC = +0.0148** (Crop: 0.8710 vs Pad: 0.8562) e **ΔAUPRC = +0.0268** (0.7208 vs 0.6940). A exceção foi Pleural Effusion, onde o Zero Padding superou por −0.0084 AUROC — a única inversão do padrão.
+
+Para o ablation study, este resultado tem implicação direta: **a variável preprocessing, isolada de todas as outras**, favorece o Center Crop como estratégia de entrada para M3 e M4. O ganho não é trivial — o intervalo de +0.0148 macro-AUROC representa aproximadamente 14,6% do ganho total obtido pelo domain transfer M1→M2 (que foi +0.1013 para Crop). Isso significa que a escolha de preprocessing responde por uma fração mensurável da performance final, não apenas por detalhes de implementação.
+
+Ambos os modelos superam substancialmente o baseline M1 (macro-AUROC: 0.7697), confirmando que o fine-tuning CheXpert foi o fator dominante no pipeline — mas dentro do patamar M2, o preprocessing diferencia os modelos de forma consistente.
+
+---
+
+## 2. Análise por Label — AUROC
+
+### Tabela Consolidada
+
+| Label | Crop AUROC | Pad AUROC | Δ (Crop→Pad) | Vencedor |
+|---|---|---|---|---|
+| Pneumothorax | 0.9248 | 0.8806 | **+0.0442** | Crop |
+| Consolidation | 0.8932 | 0.8684 | **+0.0249** | Crop |
+| Edema | 0.8948 | 0.8834 | **+0.0114** | Crop |
+| Atelectasis | 0.8103 | 0.7992 | **+0.0111** | Crop |
+| Cardiomegaly | 0.8254 | 0.8196 | **+0.0057** | Crop |
+| Pleural Effusion | 0.8773 | **0.8857** | −0.0084 | **Pad** |
+
+### Gradiente de Sensibilidade
+
+**Alta sensibilidade ao preprocessing (Δ ≥ 0.02):**
+
+- **Pneumothorax (+0.0442)** — maior diferença absoluta do conjunto. O pneumotórax manifesta-se tipicamente como hipertransparência periférica na região apical e laterais do pulmão — exatamente nas bordas do campo pulmonar. O Center Crop, ao recortar 2320×2320 do centro de uma imagem 2828×2828, preserva as regiões laterais com resolução de amostragem superior no resize para 512×512 (escala: 512/2320 ≈ 0.220 px/px vs 512/2828 ≈ 0.181 px/px). Isso resulta em ~21,5% mais pixels efetivos por estrutura analisada, com impacto direto na capacidade de detectar linhas pleurais finas.
+
+- **Consolidation (+0.0249)** — consolidações lobares tendem a ocupar regiões centrais e paramediastinais. O Crop, ao eliminar ~254px de bordas potencialmente ruidosas (artefatos de colimação, equipamentos de suporte), reduz ruído de fundo sem sacrificar o campo diagnóstico central. O modelo Crop obteve Sens = 0.9688 vs Pad = 0.9375, sugerindo melhor calibração do sinal diagnóstico.
+
+**Baixa sensibilidade ao preprocessing (Δ < 0.015):**
+
+- **Edema (+0.0114)** e **Atelectasis (+0.0111)** — ambas as condições produzem padrões difusos/bilaterais que ocupam grande porção do campo pulmonar. A discriminação é menos dependente de resolução periférica e mais de gradientes de densidade parenquimatosa — informação preservada por ambos os preprocessings.
+
+- **Cardiomegaly (+0.0057)** — a silhueta cardíaca é a estrutura de maior contraste na radiografia torácica, ocupa posição central e seus contornos são detectáveis mesmo com resolução efetiva reduzida. A insensibilidade ao preprocessing era esperada e confirma a robustez desta label.
+
+**Inversão — Padding superior:**
+
+- **Pleural Effusion (−0.0084)** — discutido em profundidade na Seção 6.
+
+---
+
+## 3. Além do AUROC — F1, Sensibilidade e Especificidade
+
+### Avaliação Operacional a Threshold = 0.5
+
+**Aviso metodológico importante:** as métricas abaixo (F1, Sens, Spec) são calculadas a um threshold fixo de 0.5, que pode não ser o ponto operacional ótimo para nenhum dos dois modelos. Variações de F1 da ordem de 0.01–0.02 a threshold fixo devem ser interpretadas com cautela.
+
+| Label | F1 Crop | F1 Pad | ΔF1 | Sens Crop | Sens Pad | Spec Crop | Spec Pad |
+|---|---|---|---|---|---|---|---|
+| Atelectasis | 0.6757 | 0.6696 | +0.0061 | **1.0000** | **1.0000** | 0.1429 | 0.1190 |
+| Cardiomegaly | 0.7179 | 0.6988 | +0.0191 | 0.8485 | 0.8788 | **0.6344** | 0.5484 |
+| Pleural Effusion | 0.7020 | **0.7600** | −0.0580 | 0.8281 | **0.8906** | 0.6421 | **0.6947** |
+| Pneumothorax | **0.4762** | 0.3846 | +0.0916 | 0.7143 | 0.7143 | **0.9408** | 0.9079 |
+| Consolidation | 0.5167 | **0.5556** | −0.0389 | **0.9688** | 0.9375 | 0.5512 | **0.6378** |
+| Edema | 0.6260 | **0.6357** | −0.0097 | **0.9762** | **0.9762** | 0.5897 | 0.6068 |
+| **Macro** | **0.6191** | 0.6174 | **+0.0017** | 0.8893 | **0.8996** | 0.5835 | **0.5858** |
+
+### Achados Operacionais
+
+**O Center Crop é marginalmente superior no macro-F1 (+0.0017)**, mas o resultado é heterogêneo por label:
+
+**Crop superior em F1:**
+- Pneumothorax: +0.0916 — diferença operacional relevante, refletindo a grande vantagem em AUROC (+0.0442)
+- Cardiomegaly: +0.0191
+- Atelectasis: +0.0061
+
+**Padding superior em F1:**
+- Pleural Effusion: −0.0580 — inversão mais expressiva nas métricas operacionais
+- Consolidation: −0.0389 — paradoxo interessante: Crop tem AUROC +0.0249 maior, mas F1 −0.0389 menor, sugerindo que o threshold 0.5 penaliza o Crop (modelo mais "agressivo" nessa label, Sens=0.9688 mas Spec=0.5512)
+- Edema: −0.0097
+
+### Trade-off Sensibilidade vs Especificidade
+
+Existe um **padrão estrutural** na comparação:
+
+**Center Crop tende a maior Especificidade:** Em Pneumothorax (Spec: 0.9408 vs 0.9079), Cardiomegaly (0.6344 vs 0.5484) e Atelectasis (0.1429 vs 0.1190), o Crop produz modelos ligeiramente mais conservadores — menos falsos positivos.
+
+**Zero Padding tende a maior Sensibilidade geral:** Macro-Sens = 0.8996 vs 0.8893. Em Pleural Effusion especificamente (Sens Pad = 0.8906 vs 0.8281), o Padding apresenta recall visivelmente superior.
+
+Este trade-off sugere que os dois preprocessings induziram **vieses de decisão ligeiramente diferentes ao threshold 0.5**, possivelmente porque a distribuição de scores de probabilidade difere entre os modelos mesmo quando os AUROCs são próximos. A relevância clínica depende da aplicação: triagem (favorece sensibilidade alta → Pad para Effusion) vs confirmação diagnóstica (favorece especificidade → Crop para Pneumothorax).
+
+---
+
+## 4. AUPRC — Análise de Precisão-Recall
+
+### Contexto de Desbalanceamento
+
+O AUPRC é a métrica primária para conjuntos desbalanceados, onde uma AUROC aparentemente alta pode mascarar performance precária na classe positiva. No valid set CheXpert (n=159), a prevalência das patologias é heterogênea — condições como pneumothorax e consolidation têm prevalência baixa, tornando o AUPRC especialmente informativo.
+
+| Label | AUPRC Crop | AUPRC Pad | Δ | Observação |
+|---|---|---|---|---|
+| Atelectasis | 0.7466 | 0.7399 | +0.0067 | Crop melhor |
+| Cardiomegaly | 0.7763 | 0.7651 | +0.0112 | Crop melhor |
+| Pleural Effusion | **0.8438** | 0.8386 | +0.0052 | **Inversão vs AUROC** |
+| Pneumothorax | 0.6081 | 0.5172 | +0.0909 | Crop melhor — maior Δ |
+| Consolidation | 0.5975 | 0.5818 | +0.0157 | Crop melhor |
+| Edema | 0.7525 | 0.7213 | +0.0312 | Crop melhor |
+| **Macro** | **0.7208** | 0.6940 | **+0.0268** | Crop vence |
+
+### Confirmação e Divergências
+
+**O AUPRC confirma a superioridade global do Crop (+0.0268 macro)** — e o faz de forma mais enfática que o AUROC (+0.0148), sugerindo que a vantagem do Crop é mais pronunciada nas regiões de alta precisão da curva PR, tipicamente mais relevantes clinicamente.
+
+**Achado notável — Pleural Effusion:** O AUROC favorecia Pad por −0.0084, mas o AUPRC favorece Crop por +0.0052. Esta inversão indica que o modelo Crop, embora com AUROC ligeiramente inferior, apresenta **melhor precisão nos casos positivos identificados** para Effusion. O Padding detecta mais casos (Sens=0.8906 vs 0.8281) mas com mais falsos positivos, resultando em precisão inferior apesar do recall maior. Para uma condição como derrame pleural — onde falsos positivos geram workup desnecessário — este achado do AUPRC é clinicamente relevante.
+
+**Pneumothorax:** A vantagem do Crop é ainda mais pronunciada em AUPRC (+0.0909) do que em AUROC (+0.0442), reforçando a conclusão de que o Crop não apenas discrimina melhor, mas também produz predições mais precisas para esta patologia de alto risco.
+
+---
+
+## 5. Teste DeLong — Análise Estatística
+
+### Resultados
+
+Nenhuma comparação atingiu significância estatística (p < 0.05):
+
+| Label | p-value | Interpretação |
+|---|---|---|
+| Cardiomegaly | 0.9016 | Praticamente idênticos |
+| Atelectasis | 0.8192 | Sem evidência de diferença |
+| Pleural Effusion | 0.8161 | Sem evidência de diferença |
+| Edema | 0.7581 | Sem evidência de diferença |
+| Pneumothorax | 0.5855 | Maior Δ, ainda ns |
+| Consolidation | 0.5401 | Maior Δ, ainda ns |
+
+### Interpretação Rigorosa com n=159
+
+**A ausência de significância estatística NÃO equivale à ausência de diferença clinicamente relevante.** Com n=159, o poder estatístico do teste DeLong é substancialmente limitado. Para estimar a magnitude do problema:
+
+O teste DeLong para duas AUROCs correlacionadas (mesmo conjunto de teste) tem poder razoável apenas quando o tamanho amostral é suficiente. Com n≈159 e prevalências típicas de 20–40% para as labels mais frequentes (n_positivo ≈ 30–60), o poder estatístico para detectar diferenças de ΔAUROC = 0.04–0.05 a α=0.05 está provavelmente na faixa de **20–40%** — insuficiente para conclusões negativas firmes.
+
+**O p=0.5855 para Pneumothorax (ΔAUROC=+0.0442)** é o caso mais ilustrativo: uma diferença de 4,42 pontos percentuais em AUROC permanece não-significativa porque o número de casos de pneumothorax no valid set provavelmente é baixo (prevalência típica de pneumothorax no CheXpert ≈ 5–8%, implicando n_positivo ≈ 8–13 casos). Com essa amostra, seria necessário um ΔAUROC próximo de 0.15–0.20 para atingir p<0.05.
+
+**Conclusão metodológica:** Os testes DeLong, neste contexto, têm valor primariamente negativo — eles **não refutam** as diferenças observadas, mas tampouco as confirmam. A consistência direcional do Crop em 5/6 labels e nas métricas macro (AUROC, AUPRC, F1) constitui evidência mais robusta do que qualquer p-value individual com este n.
+
+---
+
+## 6. Hipótese Anatômica para os Resultados
+
+### Por que Center Crop supera em Pneumothorax?
+
+O pneumotórax é definido pela presença de ar no espaço pleural, manifestando-se radiograficamente como:
+1. **Linha pleural visceral** — estrutura linear fina (1–3mm) paralela à parede torácica
+2. **Hipertransparência periférica** — região avascular entre a linha pleural e a parede
+3. **Localização predominante:** ápices pulmonares e margens laterais — i.e., **periferia do campo pulmonar**
+
+**Mecanismo pelo qual o Crop é superior:**
+
+O Center Crop retém uma área de 2320×2320 pixels da imagem original, que ao ser redimensionada para 512×512 produz uma razão de escala de **0.2207 px_output/px_input**. O Zero Padding retém 2828×2828 (incluindo bordas pretas), produzindo uma razão de **0.1811 px_output/px_input** — ou seja, **18% menos resolução efetiva por estrutura anatômica.**
+
+Para a linha pleural visceral, essa diferença de resolução é crítica: em Crop, cada pixel da linha pleural corresponde a ~4.5px da imagem original; em Padding, corresponde a ~5.5px. A linha pleural, sendo uma estrutura de alto contraste mas baixa espessura angular, fica próxima do limite de resolução do resize — e o Crop a mantém acima desse limiar.
+
+Adicionalmente, o Crop elimina ~254px de bordas onde frequentemente existem artefatos de colimação, marcadores de lateralidade e bordas do cassete — ruído que pode competir com o sinal periférico do pneumotórax no campo receptivo do Xception.
+
+### Por que Zero Padding supera em Pleural Effusion?
+
+O derrame pleural manifesta-se como:
+1. **Opacidade homogênea nos ângulos costofrênicos** — sinais em região *inferior* e lateral
+2. **Velamento de seios costofrênicos** — localização na borda inferior do campo pulmonar
+3. **Linha de Damoiseau/Ellis** — curvatura que pode se estender até o mediastino
+4. **Derrames maciços:** podem ocupar todo o hemitórax, mas o sinal discriminativo inicial está nos **recessos costofrênicos inferiores**
+
+**Mecanismo pelo qual o Padding é superior:**
+
+Os recessos costofrênicos situam-se nas bordas *inferiores* e *laterais inferiores* do campo pulmonar — regiões que o Center Crop, ao recortar centrado no mediastino, pode **truncar parcialmente**, especialmente em imagens com posicionamento ligeiramente assimétrico ou em pacientes com tórax longo.
+
+O Zero Padding, ao preservar a imagem completa dentro da janela 512×512 (ainda que com bordas pretas), garante que os recessos costofrênicos — independente do posicionamento — estejam sempre representados. O custo é resolução efetiva menor, mas para derrame pleural a informação crítica não é a linha fina de interface ar-líquido (como no pneumotórax) — é a **presença ou ausência de opacidade em região anatômica específica**, detecção que é robusta mesmo com resolução ligeiramente reduzida.
+
+Em termos quantitativos: Pad obteve Sens = 0.8906 vs 0.8281 no Crop — uma diferença de 6.25 pontos percentuais em sensibilidade, consistente com a hipótese de que o Crop perde alguns casos de derrame periférico por truncamento dos recessos.
+
+### Síntese do Mecanismo Diferencial
+
+| Patologia | Sinal Diagnóstico Crítico | Localização | Preprocessing Favorável |
+|---|---|---|---|
+| Pneumothorax | Linha pleural fina | Periferia superior/lateral | **Crop** (maior resolução efetiva) |
+| Pleural Effusion | Opacidade recsoso costofrênicos | Periferia inferior | **Pad** (maior cobertura geométrica) |
+| Consolidation | Opacidade parenquimatosa lobar | Central-paramediastinal | **Crop** (menos ruído de borda) |
+| Cardiomegaly | Silhueta cardíaca | Central | Indiferente (ambos adequados) |
+| Edema | Opacidade intersticial difusa | Difuso bilateral | Indiferente (padrão difuso) |
+| Atelectasis | Opacidade/volume lobar | Variável | Leve vantagem Crop |
+
+---
+
+## 7. Impacto do Domain Transfer (M1→M2)
+
+### Ganho sobre o Baseline M1 (Macro-AUROC: 0.7697)
+
+| Modelo | AUROC | Ganho sobre M1 | % do Ganho Explicado por Preprocessing |
+|---|---|---|---|
+| M1 (NIH only) | 0.7697 | — | — |
+| M2 Crop | 0.8710 | **+0.1013** | Referência |
+| M2 Pad | 0.8562 | **+0.0865** | −14.6% |
+
+O domain transfer NIH→CheXpert é, **de longe, o fator dominante** da melhora de performance neste ablation. O ganho de +0.1013 (Crop) representa um avanço expressivo que nenhuma estratégia de preprocessing isolada poderia replicar.
+
+**A consistência do ganho entre os dois preprocessings é alta:** ambos melhoram substancialmente sobre M1, e a diferença entre eles (+0.0148) representa apenas ~14.6% do ganho total obtido pelo Crop. Isso indica que:
+
+1. O fine-tuning CheXpert adicionou conhecimento de domínio genuíno que transcende o preprocessing
+2. O preprocessing modula, mas não determina, o patamar de performance
+3. Um M2 com Padding ainda seria muito superior ao M1, sugerindo que se a hipótese anatômica mudar em M3/M4 (e.g., adição de augmentations que compensem o truncamento), o Padding poderia ser competitivo
+
+**Ausência de interação adversa:** nenhuma patologia regrediu abaixo do M1 com qualquer preprocessing, confirmando que o domain transfer foi robusto independentemente da estratégia de entrada.
+
+---
+
+## 8. Recomendação Definitiva
+
+### **Recomendação: Center Crop como ponto de partida para M3**
+
+**Justificativa técnica hierárquica:**
+
+**Argumento primário — AUROC macro:** +0.0148 em favor do Crop (0.8710 vs 0.8562), com direção consistente em 5/6 patologias. Consistência direcional em múltiplas labels é metodologicamente mais robusta do que uma diferença pontual grande em label única.
+
+**Argumento secundário — AUPRC:** +0.0268 em favor do Crop (0.7208 vs 0.6940). A maior margem no AUPRC vs AUROC indica que a vantagem do Crop é mais pronunciada quando o modelo precisa ser preciso — condição relevante para aplicações clínicas onde falsos positivos têm custo.
+
+**Argumento terciário — Pneumothorax:** ΔAUROC = +0.0442, ΔAUPRC = +0.0909, ΔF1 = +0.0916. Pneumotórax é a patologia de maior urgência clínica no conjunto — pneumotórax hipertensivo é uma emergência que requer diagnóstico imediato. A superioridade consistente e expressiva do Crop nesta label tem peso clínico desproporcional em relação à sua contribuição matemática ao macro.
+
+**Argumento de robustez:** O Crop preserva maior resolução efetiva (escala 0.2207 vs 0.1811), o que é relevante para M3 se houver introdução de augmentations geométricas (rotação, flip, zoom) — transformações que degradam estruturas periféricas finas, problema mais severo no Padding onde a resolução já é menor.
+
+**Contra-argumento registrado:** O Padding é superior em Pleural Effusion por AUROC (−0.0084) e por F1 operacional (−0.0580). Esta inversão é anatomicamente coerente e não deve ser descartada. Se M3/M4 incluírem modificações que melhorem a cobertura dos recessos costofrênicos no Crop (e.g., aspect-ratio-preserving crop com offset inferior, ou augmentation de translação vertical), a desvantagem pode ser mitigada.
+
+**Decisão:** **M2 Center Crop avança para M3** como configuração padrão de preprocessing.
+
+---
+
+## 9. Limitações e Riscos
+
+### O que os resultados NÃO podem garantir com n=159
+
+**9.1 Instabilidade estatística das estimativas pontuais**
+
+Com n=159, o intervalo de confiança 95% para uma AUROC de ~0.87 é tipicamente ±0.04 a ±0.06 por label — do mesmo tamanho ou maior que as diferenças observadas entre Crop e Pad. As estimativas pontuais são **ruidosas**, e a hierarquia entre labels poderia mudar com amostras diferentes.
+
+**9.2 Poder insuficiente para conclusões negativas**
+
+Os p-values DeLong não-significativos não provam que os modelos são equivalentes. Com poder estatístico estimado de 20–40% para as diferenças observadas, a ausência de significância é o resultado esperado mesmo se a diferença real for clinicamente importante.
+
+**9.3 Generalização para a distribuição de teste**
+
+O valid set de 159 imagens CheXpert pode não representar a variabilidade de posicionamento, técnica radiográfica e espectro clínico do conjunto de teste final ou de dados de produção. Especificamente:
+- A superioridade do Crop em Pneumothorax pode ser inflada por casos de pneumotórax apical bem posicionados no valid set
+- A superioridade do Pad em Pleural Effusion pode ser inflada por casos com derrames periféricos ou pacientes com tórax de maior diâmetro longitudinal
+
+**9.4 Threshold fixo como artefato operacional**
+
+As métricas F1, Sensibilidade e Especificidade foram calculadas a threshold=0.5, que pode não ser o ponto ótimo para nenhum modelo. A reversão de F1 em Consolidation (Crop superior em AUROC mas inferior em F1) e Pleural Effusion sugere que as distribuições de score dos dois modelos têm formas diferentes — a comparação a threshold fixo pode favorecer artificialmente o modelo cujo pico de Youden está próximo de 0.5.
+
+**9.5 Interação com hiperparâmetros de M3**
+
+A superioridade do Crop foi estabelecida com Focal Loss γ=2.0, U-Ignore e os pesos específicos de M2. Se M3 alterar a função de perda, a política de labels incertos ou introduzir augmentations, a comparação Crop vs Pad pode ter resultado diferente. A recomendação do Crop é condicionada à continuidade das demais escolhas arquiteturais.
+
+**9.6 Ausência de ensemble ou calibração de threshold**
+
+Nenhum dos modelos teve seu threshold calibrado por label — um procedimento padrão em sistemas de triagem clínica. As especificidades baixas observadas em Atelectasis (Crop: 0.1429, Pad: 0.1190) sugerem forte viés de predição positiva a threshold=0.5 que seria corrigido por calibração. A comparação operacional (F1, Sens, Spec) deve ser reinterpretada após calibração adequada antes de qualquer uso clínico.
+
+---
+
+## Síntese Final
+
+| Dimensão | Vencedor | Margem | Confiança |
+|---|---|---|---|
+| Macro-AUROC | **Crop** | +0.0148 | Moderada |
+| Macro-AUPRC | **Crop** | +0.0268 | Moderada-Alta |
+| Macro-F1 (thr=0.5) | **Crop** | +0.0017 | Baixa |
+| Pneumothorax (clínico) | **Crop** | +0.0442 AUROC | Moderada |
+| Pleural Effusion | **Pad** | −0.0084 AUROC | Baixa |
+| Consistência direcional | **Crop** | 5/6 labels | Alta |
+| Significância estatística | Nenhum | Todos ns | n=159 insuficiente |
+
+**Decisão final: M2 Center Crop → M3**, com monitoramento prioritário de Pleural Effusion nos experimentos subsequentes para verificar se a desvantagem persiste ou é corrigida por modificações arquiteturais.

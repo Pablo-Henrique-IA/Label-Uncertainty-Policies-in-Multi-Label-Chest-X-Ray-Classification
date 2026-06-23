@@ -1,0 +1,19 @@
+{
+  "model": "M2_Crop_UIgnore",
+  "variant": "CROPPING",
+  "policy": "U-Ignore",
+  "macro_auroc": 0.870990988137784,
+  "epochs": {
+    "p1": 20,
+    "p2": 40,
+    "p3": 30
+  },
+  "per_label_auroc": {
+    "atelectasis": 0.8103174603174603,
+    "cardiomegaly": 0.8253502769631801,
+    "pleural_effusion": 0.877467105263158,
+    "pneumothorax": 0.9248120300751881,
+    "consolidation": 0.8932086614173229,
+    "edema": 0.8947903947903947
+  }
+}

@@ -1,0 +1,298 @@
+
+<style>
+.panel { background: var(--color-background-primary); border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-lg); padding: 1rem 1.25rem; margin-bottom: 12px; }
+.section-title { font-size: 13px; font-weight: 500; color: var(--color-text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 12px; }
+.metric-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 12px; }
+.metric-card { background: var(--color-background-secondary); border-radius: var(--border-radius-md); padding: 10px 12px; }
+.metric-label { font-size: 11px; color: var(--color-text-tertiary); margin-bottom: 2px; }
+.metric-val { font-size: 18px; font-weight: 500; color: var(--color-text-primary); }
+.metric-delta { font-size: 11px; }
+.pos { color: var(--color-text-success); }
+.neg { color: var(--color-text-danger); }
+.warn { color: var(--color-text-warning); }
+.tbl { width: 100%; border-collapse: collapse; font-size: 12px; }
+.tbl th { font-weight: 500; color: var(--color-text-secondary); padding: 5px 8px; border-bottom: 0.5px solid var(--color-border-tertiary); text-align: left; }
+.tbl td { padding: 5px 8px; border-bottom: 0.5px solid var(--color-border-tertiary); color: var(--color-text-primary); }
+.tbl tr:last-child td { border-bottom: none; }
+.badge { display: inline-block; font-size: 10px; font-weight: 500; padding: 2px 6px; border-radius: 4px; }
+.badge-crop { background: var(--color-background-info); color: var(--color-text-info); }
+.badge-pad { background: var(--color-background-warning); color: var(--color-text-warning); }
+.badge-warn { background: var(--color-background-danger); color: var(--color-text-danger); }
+.badge-ok { background: var(--color-background-success); color: var(--color-text-success); }
+.flag { font-size: 11px; color: var(--color-text-danger); font-weight: 500; }
+.flag-ok { font-size: 11px; color: var(--color-text-success); font-weight: 500; }
+.bar-wrap { height: 8px; background: var(--color-background-secondary); border-radius: 4px; overflow: hidden; margin-top: 3px; }
+.bar-inner { height: 100%; border-radius: 4px; }
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.insight { border-left: 3px solid; padding: 8px 12px; margin-bottom: 8px; border-radius: 0 var(--border-radius-md) var(--border-radius-md) 0; background: var(--color-background-secondary); }
+.insight p { font-size: 12px; color: var(--color-text-primary); margin: 0; line-height: 1.5; }
+.insight .i-title { font-size: 11px; font-weight: 500; margin-bottom: 3px; }
+</style>
+
+<h2 class="sr-only">Análise comparativa profunda — M2 Center Crop vs Zero Padding, métricas completas por label</h2>
+
+<div class="panel">
+  <div class="section-title">Resumo executivo — todas as dimensões</div>
+  <div class="metric-grid">
+    <div class="metric-card">
+      <div class="metric-label">Macro AUROC Δ</div>
+      <div class="metric-val pos">+0.0148</div>
+      <div class="metric-delta" style="color:var(--color-text-secondary)">Crop 0.8710 vs Pad 0.8562</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Macro AUPRC Δ</div>
+      <div class="metric-val pos">+0.0268</div>
+      <div class="metric-delta" style="color:var(--color-text-secondary)">Crop 0.7208 vs Pad 0.6940</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Macro F1 Δ (thr=0.5)</div>
+      <div class="metric-val" style="color:var(--color-text-warning)">+0.0017</div>
+      <div class="metric-delta" style="color:var(--color-text-secondary)">Crop 0.6191 vs Pad 0.6174</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">DeLong (todos)</div>
+      <div class="metric-val" style="color:var(--color-text-secondary)">ns</div>
+      <div class="metric-delta" style="color:var(--color-text-secondary)">n=159 insuficiente</div>
+    </div>
+  </div>
+  <div class="metric-grid">
+    <div class="metric-card">
+      <div class="metric-label">Labels Crop vence</div>
+      <div class="metric-val">5/6</div>
+      <div class="metric-delta pos">AUROC + AUPRC</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Pneumothorax n_pos</div>
+      <div class="metric-val warn">7</div>
+      <div class="metric-delta warn">4.4% — CI largo</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Atat. Sens ambos</div>
+      <div class="metric-val warn">1.000</div>
+      <div class="metric-delta warn">Spec Crop 0.143!</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Inversão Effusion</div>
+      <div class="metric-val" style="color:var(--color-text-warning)">AUROC≠AUPRC</div>
+      <div class="metric-delta" style="color:var(--color-text-secondary)">Pad AUROC, Crop AUPRC</div>
+    </div>
+  </div>
+</div>
+
+<div class="two-col">
+<div>
+<div class="panel">
+  <div class="section-title">Por label — AUROC + AUPRC + F1</div>
+  <table class="tbl">
+    <thead>
+      <tr><th>Label</th><th>AUROC C</th><th>AUROC P</th><th>AUPRC C</th><th>AUPRC P</th><th>F1 C</th><th>F1 P</th><th>Prev</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>atelectasis</td>
+        <td class="pos">0.8103</td><td>0.7992</td>
+        <td class="pos">0.7466</td><td>0.7399</td>
+        <td>0.676</td><td>0.670</td>
+        <td>47%</td>
+      </tr>
+      <tr>
+        <td>cardiomegaly</td>
+        <td class="pos">0.8254</td><td>0.8196</td>
+        <td class="pos">0.7763</td><td>0.7651</td>
+        <td class="pos">0.718</td><td>0.699</td>
+        <td>42%</td>
+      </tr>
+      <tr>
+        <td>pleural_eff.</td>
+        <td class="neg">0.8773</td><td class="pos">0.8857</td>
+        <td class="pos">0.8438</td><td class="neg">0.8386</td>
+        <td class="neg">0.702</td><td class="pos">0.760</td>
+        <td>40%</td>
+      </tr>
+      <tr>
+        <td>pneumothorax</td>
+        <td class="pos">0.9248</td><td>0.8806</td>
+        <td class="pos">0.6081</td><td>0.5172</td>
+        <td class="pos">0.476</td><td>0.385</td>
+        <td style="color:var(--color-text-danger)"><b>4.4%</b></td>
+      </tr>
+      <tr>
+        <td>consolidation</td>
+        <td class="pos">0.8932</td><td>0.8684</td>
+        <td class="pos">0.5975</td><td>0.5818</td>
+        <td class="neg">0.517</td><td class="pos">0.556</td>
+        <td>20%</td>
+      </tr>
+      <tr>
+        <td>edema</td>
+        <td class="pos">0.8948</td><td>0.8834</td>
+        <td class="pos">0.7525</td><td>0.7213</td>
+        <td class="neg">0.626</td><td class="pos">0.636</td>
+        <td>26%</td>
+      </tr>
+      <tr style="border-top: 1px solid var(--color-border-secondary);">
+        <td><b>MACRO</b></td>
+        <td class="pos"><b>0.8710</b></td><td><b>0.8562</b></td>
+        <td class="pos"><b>0.7208</b></td><td><b>0.6940</b></td>
+        <td><b>0.619</b></td><td><b>0.617</b></td>
+        <td>—</td>
+      </tr>
+    </tbody>
+  </table>
+  <div style="margin-top:8px; font-size:11px; color:var(--color-text-tertiary)">Verde = vencedor por métrica. Pleural effusion tem divergência AUROC×AUPRC.</div>
+</div>
+</div>
+
+<div>
+<div class="panel">
+  <div class="section-title">Sens / Spec @ threshold = 0.5</div>
+  <table class="tbl">
+    <thead>
+      <tr><th>Label</th><th>Sens C</th><th>Sens P</th><th>Spec C</th><th>Spec P</th><th>Alerta</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>atelectasis</td>
+        <td><b>1.000</b></td><td><b>1.000</b></td>
+        <td class="warn">0.143</td><td class="warn">0.119</td>
+        <td><span class="badge badge-warn">over-call</span></td>
+      </tr>
+      <tr>
+        <td>cardiomegaly</td>
+        <td>0.848</td><td>0.879</td>
+        <td class="pos">0.634</td><td>0.548</td>
+        <td><span class="badge badge-crop">Crop Spec</span></td>
+      </tr>
+      <tr>
+        <td>pleural_eff.</td>
+        <td>0.828</td><td class="pos">0.891</td>
+        <td>0.642</td><td class="pos">0.695</td>
+        <td><span class="badge badge-pad">Pad domina</span></td>
+      </tr>
+      <tr>
+        <td>pneumothorax</td>
+        <td>0.714</td><td>0.714</td>
+        <td class="pos">0.941</td><td>0.908</td>
+        <td><span class="badge badge-warn">n=7!</span></td>
+      </tr>
+      <tr>
+        <td>consolidation</td>
+        <td class="pos">0.969</td><td>0.938</td>
+        <td>0.551</td><td class="pos">0.638</td>
+        <td><span class="badge badge-warn">Crop agressivo</span></td>
+      </tr>
+      <tr>
+        <td>edema</td>
+        <td>0.976</td><td>0.976</td>
+        <td>0.590</td><td class="pos">0.607</td>
+        <td><span class="badge badge-crop">Empate sens</span></td>
+      </tr>
+      <tr style="border-top: 1px solid var(--color-border-secondary);">
+        <td><b>MACRO</b></td>
+        <td><b>0.889</b></td><td><b>0.900</b></td>
+        <td><b>0.584</b></td><td><b>0.586</b></td>
+        <td>—</td>
+      </tr>
+    </tbody>
+  </table>
+  <div style="margin-top:8px; font-size:11px; color:var(--color-text-tertiary)">Spec macro quase idêntica (+0.002 Pad). Sens macro Pad +0.010.</div>
+</div>
+</div>
+</div>
+
+<div class="panel">
+  <div class="section-title">4 achados críticos — análise além do número</div>
+  <div class="two-col">
+    <div>
+      <div class="insight" style="border-color: #E24B4A;">
+        <div class="i-title" style="color:var(--color-text-danger)">⚑ Pneumothorax: n_pos = 7 — AUROC 0.9248 é ruído</div>
+        <p>Com apenas 7 casos positivos, cada um vale ~14.3% do AUROC. O CI 95% estimado para AUROC 0.9248 com n=7 pos e n=152 neg está em ±0.12–0.15. O "melhor label" do comparativo é estatisticamente o menos confiável. O AUPRC (0.6081) é mais honesto: com prevalência 4.4%, precisão é structuralmente limitada. Em M3, qualquer mudança neste label deve ser interpretada com cautela extrema — um caso adicional ou removido do valid set move o AUROC em ~14 pontos.</p>
+      </div>
+      <div class="insight" style="border-color: #BA7517;">
+        <div class="i-title" style="color:var(--color-text-warning)">⚑ Atelectasis Sens=1.0: calibração colapsada, não excelência</div>
+        <p>Sensibilidade 1.0 + Especificidade 0.143 = o modelo está classificando ~86% dos negativos como positivos. Dos 84 negativos de atelectasis, apenas ~12 (Crop) ou ~10 (Pad) foram classificados corretamente. F1 = 0.676 parece razoável só porque prevalência = 47.2% infla o denominador. U-Ignore descartou 33.739 incertos — o modelo aprendeu que "quando em dúvida, diz positivo". U-Ones no M3 pode piorar isso ou, paradoxalmente, melhorar a especificidade ao introduzir soft positives que calibram o boundary.</p>
+      </div>
+    </div>
+    <div>
+      <div class="insight" style="border-color: #1D9E75;">
+        <div class="i-title" style="color:var(--color-text-success)">✓ Pleural Effusion: inversão AUROC×AUPRC resolve o aparente paradoxo</div>
+        <p>Pad vence em AUROC (−0.0084) e em F1 operacional (−0.0580), mas Crop vence em AUPRC (+0.0052). Isso significa: Pad ordena mais positivos corretamente em toda a curva ROC e tem maior sensibilidade (0.891 vs 0.828), mas Crop produz predições mais precisas nos casos que identifica. Em triagem (maximizar recall), Pad é melhor para Effusion. Em confirmação (maximizar precision), Crop é melhor. O AUPRC ser maior no Crop apesar da Sens menor indica que quando o Crop diz "positivo com alta confiança", ele erra menos.</p>
+      </div>
+      <div class="insight" style="border-color: #534AB7;">
+        <div class="i-title" style="color:#534AB7">✓ Consolidation: Crop AUROC+0.0249 mas F1−0.0389 — Crop está over-calling</div>
+        <p>Crop Sens=0.9688 vs Spec=0.5512. Pad Sens=0.9375 vs Spec=0.6378. O Crop é mais agressivo em consolidation: marca mais verdadeiros positivos, mas também mais falsos positivos. Isso reflete o treino com U-Ignore: com 27.742 incertos removidos da loss, o gradiente positivo domina. Em M3, U-Ones converterá esses 27.742 em positivos suaves — a questão é se isso vai aumentar a sensibilidade ainda mais (piora specificity) ou vai redistribuir a confiança do modelo de forma mais calibrada.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="panel">
+  <div class="section-title">Implicações para M3 — U-Ones + Label Smoothing + Center Crop</div>
+  <table class="tbl">
+    <thead>
+      <tr><th>Label</th><th>Problema M2</th><th>Mecanismo U-Ones</th><th>Expectativa M3</th><th>Risco</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>atelectasis</td>
+        <td><span class="flag">Spec=0.143</span> (over-call)</td>
+        <td>+33.739 soft positives</td>
+        <td>AUROC pode subir; Spec pode piorar se soft-pos reforçam over-call</td>
+        <td><span class="badge badge-warn">Alto</span></td>
+      </tr>
+      <tr>
+        <td>consolidation</td>
+        <td>Crop over-call (Spec=0.551)</td>
+        <td>+27.742 soft positives</td>
+        <td>Ambíguo — U-Ones pode calibrar ou amplificar o viés</td>
+        <td><span class="badge badge-warn">Médio-alto</span></td>
+      </tr>
+      <tr>
+        <td>pleural_effusion</td>
+        <td>Crop Sens=0.828 (perde casos periféricos)</td>
+        <td>+11.628 derrames pequenos</td>
+        <td>Sens deve subir; pode reduzir gap com Padding</td>
+        <td><span class="badge badge-ok">Baixo</span></td>
+      </tr>
+      <tr>
+        <td>cardiomegaly</td>
+        <td>Abaixo do macro (0.825)</td>
+        <td>+8.087 (1.5× positivos)</td>
+        <td>Melhora moderada esperada</td>
+        <td><span class="badge badge-ok">Baixo</span></td>
+      </tr>
+      <tr>
+        <td>pneumothorax</td>
+        <td>n=7 — estimates ruidosas</td>
+        <td>+3.145 (poucos incertos)</td>
+        <td>Impacto mínimo; qualquer mudança será ruído estatístico</td>
+        <td><span class="badge badge-warn">Leitura difícil</span></td>
+      </tr>
+      <tr>
+        <td>edema</td>
+        <td>Sens=0.976, estável</td>
+        <td>+12.984 (1.5× positivos)</td>
+        <td>Impacto limitado — já robusto</td>
+        <td><span class="badge badge-ok">Baixo</span></td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="panel">
+  <div class="section-title">DeLong: por que os z-scores são tão baixos?</div>
+  <table class="tbl">
+    <thead>
+      <tr><th>Label</th><th>n_pos</th><th>Δ AUROC</th><th>z</th><th>p</th><th>n_pos necessário (α=0.05, β=0.80)</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>pneumothorax</td><td style="color:var(--color-text-danger)">7</td><td>+0.0442</td><td>0.545</td><td>0.586</td><td style="color:var(--color-text-danger)">~300–500</td></tr>
+      <tr><td>consolidation</td><td>32</td><td>+0.0249</td><td>0.613</td><td>0.540</td><td>~150–200</td></tr>
+      <tr><td>atelectasis</td><td>75</td><td>+0.0111</td><td>0.229</td><td>0.819</td><td>~800–1000</td></tr>
+      <tr><td>pleural_effusion</td><td>64</td><td>−0.0084</td><td>−0.233</td><td>0.816</td><td>~1200+</td></tr>
+      <tr><td>edema</td><td>42</td><td>+0.0114</td><td>0.308</td><td>0.758</td><td>~600–800</td></tr>
+      <tr><td>cardiomegaly</td><td>66</td><td>+0.0057</td><td>0.124</td><td>0.902</td><td>~2000+</td></tr>
+    </tbody>
+  </table>
+  <div style="margin-top:8px; font-size:11px; color:var(--color-text-tertiary)">n_pos necessário = estimativa aproximada para 80% de poder com α=0.05 (DeLong correlacionado, aproximação Hanley-McNeil). O valid set de 159 imagens tem poder estatístico de 5–25% para as diferenças observadas.</div>
+</div>
