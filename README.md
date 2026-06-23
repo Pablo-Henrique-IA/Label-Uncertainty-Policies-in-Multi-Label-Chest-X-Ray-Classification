@@ -151,24 +151,6 @@ Control with fixed `w_ℓ` across policies (decouple semantics from reweighting)
 
 ---
 
-## Citation
-
-If this work is useful to you, please cite:
-
-```bibtex
-@inproceedings{silva2026label,
-  title     = {Label Uncertainty Policies in Multi-Label Chest X-Ray Classification:
-               A Systematic Ablation Study},
-  author    = {Miranda Silva, Pablo Henrique},
-  booktitle = {Anais do XXIII Encontro Nacional de Intelig{\^e}ncia Artificial e
-               Computacional (ENIAC), BRACIS},
-  year      = {2026},
-  note      = {Projeto Integrador 2025/2026, Faculdade SENAI FATESG}
-}
-```
-
-<!-- Update once accepted: pages, DOI, publisher. -->
-
 ## Acknowledgments
 
 This project was born from a personal experience with a childhood pneumonia diagnosis — the motivation behind every line of code. Thanks to **Prof. Dr. Gustavo Laureano** for guidance and scientific rigor, and to **Hugo Pessoni** (B.Sc. in AI, UFG) for technical discussions. Institutional support from **SENAI FATESG**, **CEIA/UFG**, and **AKCIT**.
