@@ -87,7 +87,7 @@ Splits are **patient-level**; contamination verified = 0. Only frontal images ar
 
 **Uncertain-label prevalence (CheXpert, fine-tuning subset):** atelectasis 38.7%, consolidation 31.8%, edema 14.9%, pleural effusion 13.3%, cardiomegaly 3.3%, pneumothorax 2.9%. The two labels chosen for selective U-Ones in M4 (pneumothorax, pleural effusion) have the *lowest* and *technically-driven* uncertainty.
 
-> ⚠️ **Datasets are not redistributed here.** Download NIH ChestX-ray14 and CheXpert from their official sources and accept their respective licenses/usage terms. This repo ships **code, configs, and CSV manifests** (paths + labels + Focal-Loss weights + separate U-Ones/U-Ignore columns), not raw images.
+> **Datasets are not redistributed here.** Download NIH ChestX-ray14 and CheXpert from their official sources and accept their respective licenses/usage terms. This repo ships **code, configs, and CSV manifests** (paths + labels + Focal-Loss weights + separate U-Ones/U-Ignore columns), not raw images.
 
 ---
 
